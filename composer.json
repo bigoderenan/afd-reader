@@ -1,0 +1,13 @@
+{
+    "name": "afd-reader/afd-reader-latest",
+    "description": "Leitor de Arquivo Fonte de Dados (AFD) REP/REP-C/REP-A",
+    "type": "project",
+    "require": {
+        "php": ">=8.3"
+    },
+    "autoload": {
+        "psr-4": {
+            "App\\": "app/"
+        }
+    }
+}

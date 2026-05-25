@@ -1,0 +1,11 @@
+Options -Indexes
+RewriteEngine On
+
+# Bloqueia acesso direto a pastas internas caso o projeto seja colocado na raiz do servidor.
+RewriteRule ^(app|config|database|resources|storage|vendor)(/|$) - [F,L]
+RewriteRule ^(\.env|composer\.(json|lock)|README\.md)$ - [F,L]
+
+# Redireciona internamente todas as requisições para public/.
+RewriteRule ^$ public/ [L]
+RewriteCond %{REQUEST_URI} !/public/
+RewriteRule ^(.*)$ public/$1 [L]

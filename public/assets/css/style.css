@@ -1,0 +1,131 @@
+/* Custom styles for the AFD reader */
+
+body {
+    background-color: #121212;
+    color: #e0e0e0;
+}
+
+.navbar.bg-purple {
+    background-color: #4b0082;
+}
+
+.nav-link.active {
+    font-weight: bold;
+}
+
+.table-dark {
+    color: #e0e0e0;
+}
+
+/* Alternating row colors for dark tables */
+.table-dark tbody tr:nth-child(odd) {
+    background-color: #2a2a2a;
+}
+
+.table-dark tbody tr:nth-child(even) {
+    background-color: #1f1f1f;
+}
+
+.btn-green {
+    background-color: #28a745;
+    border-color: #28a745;
+}
+
+.btn-green:hover {
+    background-color: #218838;
+    border-color: #1e7e34;
+}
+
+.btn-orange {
+    background-color: #fd7e14;
+    border-color: #fd7e14;
+}
+
+.btn-orange:hover {
+    background-color: #e36b0a;
+    border-color: #d96004;
+}
+
+.btn-blue {
+    background-color: #007bff;
+    border-color: #007bff;
+}
+
+.btn-blue:hover {
+    background-color: #0069d9;
+    border-color: #0062cc;
+}
+
+.text-red {
+    color: #dc3545 !important;
+}
+
+.text-purple {
+    color: #b19cd9 !important;
+}
+
+.text-green {
+    color: #28a745 !important;
+}
+
+.text-blue {
+    color: #007bff !important;
+}
+
+.header-section {
+    color: #28a745;
+    margin-bottom: 1rem;
+}
+.afd-section-title {
+    background: #3b913f;
+    color: #fff;
+    font-weight: 700;
+    padding: 10px 12px;
+    margin-top: 18px;
+    margin-bottom: 0;
+}
+
+.espelho-table th,
+.espelho-table td {
+    font-size: 0.92rem;
+    white-space: nowrap;
+}
+
+.tempo-col {
+    background: rgba(126, 128, 0, 0.35) !important;
+    text-align: center;
+}
+
+@media print {
+    body {
+        background: #fff !important;
+        color: #000 !important;
+    }
+
+    nav,
+    .d-print-none,
+    .navbar,
+    .btn {
+        display: none !important;
+    }
+
+    .container {
+        max-width: 100% !important;
+        width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    .table,
+    .table * {
+        background: #fff !important;
+        color: #000 !important;
+        border-color: #000 !important;
+    }
+
+    .afd-section-title {
+        background: #fff !important;
+        color: #000 !important;
+        border: 1px solid #000;
+    }
+}
