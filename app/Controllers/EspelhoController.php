@@ -54,7 +54,8 @@ class EspelhoController extends Controller
         $jornadaService = new JornadaService();
         $jornadaService->save($pis, [
             'semanal' => $_POST['semanal'] ?? '44:00',
-            'diaria' => $_POST['diaria'] ?? '08:00',
+            'diaria' => $_POST['diaria'] ?? '09:00',
+            'sexta' => $_POST['sexta'] ?? '08:00',
             'tolerancia' => $_POST['tolerancia'] ?? 10,
             'dias_uteis' => $_POST['dias_uteis'] ?? [1, 2, 3, 4, 5],
         ]);

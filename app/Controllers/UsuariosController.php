@@ -65,7 +65,7 @@ class UsuariosController extends Controller
                 'marcacoes' => $numMarks,
                 'primeira'  => $firstMark ? $this->formatDateOnly($firstMark['data'] ?? '') : '-',
                 'ultima'    => $lastMark ? $this->formatDateOnly($lastMark['data'] ?? '') : '-',
-                'cargaHoraria' => JornadaService::minutesToHour((int)$jornada['semanal_minutos']) . (!empty($jornada['custom']) ? '' : '*'),
+                'cargaHoraria' => JornadaService::minutesToHour((int)($jornada['semanal_minutos'] ?? 2640)) . (!empty($jornada['custom']) ? '' : '*'),
             ];
 
             if (!empty($user['ativo'])) {

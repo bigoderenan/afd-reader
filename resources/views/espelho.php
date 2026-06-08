@@ -9,6 +9,8 @@ $meses = [
     9 => 'Setembro', 10 => 'Outubro', 11 => 'Novembro', 12 => 'Dezembro',
 ];
 
+$jornada = (new JornadaService())->normalize($jornada ?? []);
+
 function navMonthUrl(string $pis, int $mes, int $ano, int $deltaMes = 0, int $deltaAno = 0): string {
     $date = new DateTime(sprintf('%04d-%02d-01', $ano + $deltaAno, $mes));
     if ($deltaMes !== 0) {
@@ -55,22 +57,26 @@ function navMonthUrl(string $pis, int $mes, int $ano, int $deltaMes = 0, int $de
             <input type="hidden" name="ano" value="<?php echo $ano; ?>">
             <div class="col-md-2">
                 <label class="form-label">Carga semanal</label>
-                <input class="form-control bg-dark text-light border-secondary" name="semanal" value="<?php echo JornadaService::minutesToHour((int)$jornada['semanal_minutos']); ?>" placeholder="44:00">
+                <input class="form-control bg-dark text-light border-secondary" name="semanal" value="<?php echo htmlspecialchars(JornadaService::minutesToHour((int)($jornada['semanal_minutos'] ?? 2640)), ENT_QUOTES, 'UTF-8'); ?>" placeholder="44:00">
             </div>
             <div class="col-md-2">
                 <label class="form-label">Carga diária</label>
-                <input class="form-control bg-dark text-light border-secondary" name="diaria" value="<?php echo JornadaService::minutesToHour((int)$jornada['diaria_minutos']); ?>" placeholder="08:00">
+                <input class="form-control bg-dark text-light border-secondary" name="diaria" value="<?php echo htmlspecialchars(JornadaService::minutesToHour((int)($jornada['diaria_minutos'] ?? 540)), ENT_QUOTES, 'UTF-8'); ?>" placeholder="09:00">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Sexta-feira</label>
+                <input class="form-control bg-dark text-light border-secondary" name="sexta" value="<?php echo htmlspecialchars(JornadaService::minutesToHour((int)($jornada['sexta_minutos'] ?? 480)), ENT_QUOTES, 'UTF-8'); ?>" placeholder="08:00">
             </div>
             <div class="col-md-2">
                 <label class="form-label">Tolerância/min</label>
-                <input type="number" min="0" class="form-control bg-dark text-light border-secondary" name="tolerancia" value="<?php echo (int)$jornada['tolerancia_minutos']; ?>">
+                <input type="number" min="0" class="form-control bg-dark text-light border-secondary" name="tolerancia" value="<?php echo (int)($jornada['tolerancia_minutos'] ?? 10); ?>">
             </div>
             <div class="col-md-4">
                 <label class="form-label d-block">Dias úteis</label>
                 <?php $labels = [1=>'Seg',2=>'Ter',3=>'Qua',4=>'Qui',5=>'Sex',6=>'Sáb',7=>'Dom']; ?>
                 <?php foreach ($labels as $n => $label): ?>
                     <label class="me-2">
-                        <input type="checkbox" name="dias_uteis[]" value="<?php echo $n; ?>" <?php echo in_array($n, $jornada['dias_uteis'], true) ? 'checked' : ''; ?>> <?php echo $label; ?>
+                        <input type="checkbox" name="dias_uteis[]" value="<?php echo $n; ?>" <?php echo in_array($n, $jornada['dias_uteis'] ?? [1, 2, 3, 4, 5], true) ? 'checked' : ''; ?>> <?php echo $label; ?>
                     </label>
                 <?php endforeach; ?>
             </div>
@@ -87,7 +93,7 @@ function navMonthUrl(string $pis, int $mes, int $ano, int $deltaMes = 0, int $de
         <span class="badge bg-success me-2"><?php echo htmlspecialchars($nome); ?></span>
         - Ref.: <?php echo $meses[$mes] . ' de ' . $ano; ?>
     </div>
-    <div>TOLERÂNCIA : <?php echo (int)$jornada['tolerancia_minutos']; ?> min</div>
+    <div>TOLERÂNCIA : <?php echo (int)($jornada['tolerancia_minutos'] ?? 10); ?> min</div>
 </div>
 
 <div class="table-responsive">

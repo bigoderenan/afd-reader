@@ -1,10 +1,13 @@
 <?php
+
 namespace App\Services;
 
 class EspelhoPontoService
 {
     public function gerar(array $parsed, string $pis, int $mes, int $ano, array $jornada): array
     {
+        $jornada = (new JornadaService())->normalize($jornada);
+
         $usuario = $parsed['usuarios'][$pis] ?? [
             'pis' => $pis,
             'nome' => $pis,
@@ -17,9 +20,11 @@ class EspelhoPontoService
 
         foreach ($marcacoes as $m) {
             $data = (string)($m['data'] ?? '');
+
             if (!$this->sameMonth($data, $mes, $ano)) {
                 continue;
             }
+
             $porDia[$data][] = $m;
         }
 
@@ -31,6 +36,7 @@ class EspelhoPontoService
         unset($items);
 
         $diasMes = (int)date('t', strtotime(sprintf('%04d-%02d-01', $ano, $mes)));
+
         $rows = [];
         $totalTrabalhado = 0;
         $totalFalta = 0;
@@ -40,12 +46,29 @@ class EspelhoPontoService
         for ($dia = 1; $dia <= $diasMes; $dia++) {
             $data = sprintf('%04d-%02d-%02d', $ano, $mes, $dia);
             $dow = (int)date('N', strtotime($data));
+
             $isUtil = in_array($dow, $jornada['dias_uteis'] ?? [1, 2, 3, 4, 5], true);
-            $esperado = $isUtil ? (int)$jornada['diaria_minutos'] : 0;
+
+            $minutosPorDia = $jornada['minutos_por_dia'] ?? [
+                1 => 540, // Segunda: 09:00
+                2 => 540, // Terça: 09:00
+                3 => 540, // Quarta: 09:00
+                4 => 540, // Quinta: 09:00
+                5 => 480, // Sexta: 08:00
+                6 => 0,
+                7 => 0,
+            ];
+
+            $esperado = $isUtil
+                ? (int)($minutosPorDia[$dow] ?? $jornada['diaria_minutos'] ?? 480)
+                : 0;
+
             $items = $porDia[$data] ?? [];
 
             $batidas = array_map(static fn ($m) => (string)($m['hora'] ?? ''), $items);
+
             $pares = $this->montarPares($data, $batidas);
+
             $trabalhado = $pares['minutos'];
             $comentario = $pares['comentario'];
 
@@ -54,6 +77,7 @@ class EspelhoPontoService
             }
 
             $tolerancia = (int)($jornada['tolerancia_minutos'] ?? 10);
+
             $falta = 0;
             $extra = 0;
 
@@ -101,23 +125,32 @@ class EspelhoPontoService
                 'trabalhado' => JornadaService::minutesToHour($totalTrabalhado),
                 'faltas' => JornadaService::minutesToHour($totalFalta),
                 'extras' => JornadaService::minutesToHour($totalExtra),
-                'invalidadas' => $invalidadas,
             ],
+            'invalidadas' => $invalidadas,
         ];
     }
 
     public function periodoPadrao(array $usuario): array
     {
         $marks = $usuario['marcacoes'] ?? [];
+
         if (!$marks) {
             return [(int)date('m'), (int)date('Y')];
         }
 
         usort($marks, static function ($a, $b) {
-            return strcmp((string)($a['datetime'] ?? ''), (string)($b['datetime'] ?? ''));
+            $da = (string)($a['datetime'] ?? (($a['data'] ?? '') . ' ' . ($a['hora'] ?? '')));
+            $db = (string)($b['datetime'] ?? (($b['data'] ?? '') . ' ' . ($b['hora'] ?? '')));
+
+            return strcmp($da, $db);
         });
+
         $ultima = $marks[count($marks) - 1]['data'] ?? date('Y-m-d');
-        return [(int)substr($ultima, 5, 2), (int)substr($ultima, 0, 4)];
+
+        return [
+            (int)substr($ultima, 5, 2),
+            (int)substr($ultima, 0, 4),
+        ];
     }
 
     private function sameMonth(string $data, int $mes, int $ano): bool
@@ -131,31 +164,31 @@ class EspelhoPontoService
     {
         $minutos = 0;
         $incompleto = false;
-        $comentarios = [];
 
         for ($i = 0; $i < count($batidas); $i += 2) {
             $entrada = $batidas[$i] ?? null;
             $saida = $batidas[$i + 1] ?? null;
+
             if (!$entrada || !$saida) {
                 $incompleto = true;
-                $comentarios[] = 'Marcação ímpar';
                 continue;
             }
 
             $start = strtotime($data . ' ' . $entrada);
             $end = strtotime($data . ' ' . $saida);
+
             if ($start === false || $end === false || $end <= $start) {
                 $incompleto = true;
-                $comentarios[] = 'Par inválido';
                 continue;
             }
+
             $minutos += (int)(($end - $start) / 60);
         }
 
         return [
             'minutos' => $minutos,
             'incompleto' => $incompleto,
-            'comentario' => implode('; ', array_unique($comentarios)),
+            'comentario' => '',
         ];
     }
 

@@ -13,5 +13,5 @@
 
 return [
     'user'      => 'admin',
-    'pass_hash' => '$2y$10$eCAOc0mVzpZFf8QHmKmsqeoE/PCg4IvSI9uMO1ATbD/jz3xPo3bya',
+    'pass_hash' => '$2a$12$Bz7nNiZS1ZRYK5OQ6lt3xuLTfTe9UdXYkbJo2WzhtAP1rO11nGZ6i',
 ];
