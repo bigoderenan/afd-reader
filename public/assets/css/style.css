@@ -949,3 +949,32 @@ a {
 .text-white {
     color: #ffffff !important;
 }
+
+.espelho-table tbody tr.espelho-row-manual > * {
+    background-color: color-mix(in srgb, var(--app-accent) 12%, var(--app-surface)) !important;
+    color: var(--app-text) !important;
+}
+
+.espelho-table tbody tr.espelho-row-manual > td:first-child {
+    box-shadow: inset 4px 0 0 var(--app-accent);
+}
+
+.espelho-table tbody tr.espelho-row-pendente > * {
+    background-color: color-mix(in srgb, var(--app-warning-bg) 78%, var(--app-surface)) !important;
+    color: var(--app-warning-text) !important;
+}
+
+.espelho-table tbody tr.espelho-row-pendente > td:first-child {
+    box-shadow: inset 4px 0 0 var(--app-warning-text);
+}
+
+.espelho-table tbody tr.espelho-row-manual.espelho-row-pendente > * {
+    background-color: color-mix(in srgb, var(--app-warning-bg) 58%, var(--app-surface)) !important;
+}
+
+.espelho-table tbody tr.espelho-row-manual .btn,
+.espelho-table tbody tr.espelho-row-pendente .btn {
+    color: var(--app-text) !important;
+    border-color: var(--app-border-strong) !important;
+    background-color: color-mix(in srgb, var(--app-surface) 82%, transparent) !important;
+}

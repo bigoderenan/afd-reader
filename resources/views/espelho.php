@@ -176,7 +176,16 @@ $editarComentario = $ajusteManual['comentario'] ?? '';
         </thead>
         <tbody>
             <?php foreach ($espelho['rows'] as $row): ?>
-                <tr id="dia-<?php echo htmlspecialchars((string)$row['data_iso']); ?>" class="<?php echo !empty($row['manual']) ? 'table-warning text-dark' : ''; ?>">
+                <?php
+                    $rowClasses = [];
+                    if (!empty($row['manual'])) {
+                        $rowClasses[] = 'espelho-row-manual';
+                    }
+                    if (!empty($row['marcacao_pendente'])) {
+                        $rowClasses[] = 'espelho-row-pendente';
+                    }
+                ?>
+                <tr id="dia-<?php echo htmlspecialchars((string)$row['data_iso']); ?>" class="<?php echo implode(' ', $rowClasses); ?>">
                     <td class="fw-bold"><?php echo htmlspecialchars($row['data']); ?></td>
                     <td><em><?php echo htmlspecialchars($row['dia']); ?></em></td>
                     <td><?php echo htmlspecialchars($row['entrada1']); ?></td>
@@ -188,7 +197,7 @@ $editarComentario = $ajusteManual['comentario'] ?? '';
                     <td><?php echo htmlspecialchars($row['comentario']); ?></td>
                     <td class="text-red fw-bold"><?php echo htmlspecialchars($row['falta']); ?></td>
                     <td class="text-purple fw-bold"><?php echo htmlspecialchars($row['extra']); ?></td>
-                    <td class="d-print-none"><a class="btn btn-outline-light btn-sm" href="index.php?page=espelho&pis=<?php echo urlencode($pis); ?>&mes=<?php echo $mes; ?>&ano=<?php echo $ano; ?>&editar_dia=<?php echo urlencode((string)$row['data_iso']); ?>#editar-dia">Editar dia</a></td>
+                    <td class="d-print-none"><a class="btn btn-outline-light btn-sm" href="index.php?page=espelho&pis=<?php echo urlencode($pis); ?>&mes=<?php echo $mes; ?>&ano=<?php echo $ano; ?>&editar_dia=<?php echo urlencode((string)$row['data_iso']); ?>#editar-dia"><?php echo !empty($row['marcacao_pendente']) ? 'Corrigir dia' : 'Editar dia'; ?></a></td>
                 </tr>
             <?php endforeach; ?>
         </tbody>

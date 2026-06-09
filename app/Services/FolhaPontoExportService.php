@@ -459,6 +459,7 @@ class FolhaPontoExportService
             'datasMeioPeriodo' => [],
             'faltas' => 0,
             'datasFalta' => [],
+            'marcacoesPendentes' => [],
             'compensado' => 0,
         ];
 
@@ -468,6 +469,13 @@ class FolhaPontoExportService
             $faltaMinutos = (int)($row['falta_minutos'] ?? 0);
             $extraMinutos = (int)($row['extra_minutos'] ?? 0);
             $trabalhou = trim((string)($row['tempo'] ?? '')) !== '';
+
+            if (!empty($row['marcacao_pendente'])) {
+                if ($dataBr !== '') {
+                    $resumo['marcacoesPendentes'][] = $dataBr;
+                }
+                continue;
+            }
 
             if ($extraMinutos > 0) {
                 if ($dow === 7) {
@@ -549,6 +557,9 @@ class FolhaPontoExportService
         }
         if (($resumo['compensado'] ?? 0) > 0) {
             $obs[] = 'SALDO COMPENSADO ' . $this->minutesToSheetText((int)$resumo['compensado']);
+        }
+        if (!empty($resumo['marcacoesPendentes'])) {
+            $obs[] = 'MARCAÇÕES INCOMPLETAS: ' . implode(' E ', array_unique($resumo['marcacoesPendentes']));
         }
 
         return implode(' | ', $obs);

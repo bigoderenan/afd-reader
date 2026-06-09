@@ -112,6 +112,7 @@ class EspelhoPontoService
             $comentario = implode(' | ', array_unique(array_filter($comentarios, static fn ($item) => trim((string)$item) !== '')));
             $batidasDisplay = $this->slotsParaDisplay($slots, $manual, $batidasEfetivas);
 
+            $marcacaoPendente = $pares['incompleto'] && $batidasEfetivas > 0;
             if ($pares['incompleto']) {
                 $invalidadas++;
             }
@@ -121,16 +122,20 @@ class EspelhoPontoService
             $falta = 0;
             $extra = 0;
 
-            if ($esperado > 0) {
-                if ($batidasEfetivas === 0) {
-                    $falta = $esperado;
-                } elseif (($esperado - $trabalhado) > $tolerancia) {
-                    $falta = $esperado - $trabalhado;
-                } elseif (($trabalhado - $esperado) > $tolerancia) {
-                    $extra = $trabalhado - $esperado;
+            // Quando há marcação incompleta, o dia fica pendente de correção manual.
+            // Isso evita gerar falta ou hora extra falsa por causa de batida ausente.
+            if (!$marcacaoPendente) {
+                if ($esperado > 0) {
+                    if ($batidasEfetivas === 0) {
+                        $falta = $esperado;
+                    } elseif (($esperado - $trabalhado) > $tolerancia) {
+                        $falta = $esperado - $trabalhado;
+                    } elseif (($trabalhado - $esperado) > $tolerancia) {
+                        $extra = $trabalhado - $esperado;
+                    }
+                } elseif ($trabalhado > 0) {
+                    $extra = $trabalhado;
                 }
-            } elseif ($trabalhado > 0) {
-                $extra = $trabalhado;
             }
 
             $totalTrabalhado += $trabalhado;
@@ -155,6 +160,7 @@ class EspelhoPontoService
                 'extra' => $extra > 0 ? JornadaService::minutesToHour($extra) : '--',
                 'falta_minutos' => $falta,
                 'extra_minutos' => $extra,
+                'marcacao_pendente' => $marcacaoPendente,
             ];
         }
 
