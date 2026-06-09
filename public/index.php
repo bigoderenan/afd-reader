@@ -28,12 +28,13 @@ use App\Controllers\LinhaController;
 use App\Controllers\LoginController;
 use App\Controllers\EspelhoController;
 use App\Controllers\CadastroController;
+use App\Controllers\FolhaController;
 
 // Determine the requested page
 $page = $_GET['page'] ?? 'upload';
 
 // If the user is not authenticated, force login for protected pages
-$protected = ['upload', 'upload_process', 'arquivo', 'empresa', 'usuarios', 'linhas', 'espelho', 'salvar_jornada', 'cadastro'];
+$protected = ['upload', 'upload_process', 'arquivo', 'empresa', 'usuarios', 'linhas', 'espelho', 'salvar_jornada', 'cadastro', 'exportar_folha'];
 if (in_array($page, $protected, true) && !isset($_SESSION['user'])) {
     $page = 'login';
 }
@@ -74,6 +75,9 @@ switch ($page) {
         break;
     case 'cadastro':
         (new CadastroController())->index();
+        break;
+    case 'exportar_folha':
+        (new FolhaController())->exportar();
         break;
     default:
         // Unknown route

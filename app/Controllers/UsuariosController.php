@@ -3,6 +3,8 @@ namespace App\Controllers;
 
 use App\Core\Controller;
 use App\Services\JornadaService;
+use App\Services\EspelhoPontoService;
+use App\Services\FolhaPontoExportService;
 
 /**
  * Class UsuariosController
@@ -31,6 +33,7 @@ class UsuariosController extends Controller
 
         $usuarios = $parsed['usuarios'] ?? [];
         $jornadaService = new JornadaService();
+        [$exportMes, $exportAno] = $this->periodoPadrao($usuarios, $parsed);
         $ativos = [];
         $excluidos = [];
 
@@ -86,7 +89,34 @@ class UsuariosController extends Controller
         $this->render('usuarios', [
             'ativos'    => $ativos,
             'excluidos' => $excluidos,
+            'exportMes' => $exportMes,
+            'exportAno' => $exportAno,
+            'exportColumns' => FolhaPontoExportService::availableColumns(),
         ]);
+    }
+
+    private function periodoPadrao(array $usuarios, array $parsed): array
+    {
+        $ultima = '';
+
+        foreach ($usuarios as $usuario) {
+            foreach (($usuario['marcacoes'] ?? []) as $m) {
+                $data = (string)($m['data'] ?? '');
+                if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $data) && $data > $ultima) {
+                    $ultima = $data;
+                }
+            }
+        }
+
+        if ($ultima === '') {
+            $ultima = (string)($parsed['arquivo']['dataUltimoNsr'] ?? $parsed['empresa']['dataFim'] ?? '');
+        }
+
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $ultima)) {
+            return [(int)substr($ultima, 5, 2), (int)substr($ultima, 0, 4)];
+        }
+
+        return [(int)date('m'), (int)date('Y')];
     }
 
     private function formatDateOnly(string $date): string
