@@ -20,8 +20,10 @@ class FolhaController
 
         $selectedPis = $this->normalizeList($request['pis'] ?? []);
         $selectedColumns = $this->normalizeList($request['columns'] ?? []);
-        $dateStart = $this->normalizeDate((string)($request['data_inicio'] ?? ''));
-        $dateEnd = $this->normalizeDate((string)($request['data_fim'] ?? ''));
+        $periodoTipo = (string)($request['periodo_tipo'] ?? 'month');
+        $periodoTipo = $periodoTipo === 'custom' ? 'custom' : 'month';
+        $dateStart = $periodoTipo === 'custom' ? $this->normalizeDate((string)($request['data_inicio'] ?? '')) : null;
+        $dateEnd = $periodoTipo === 'custom' ? $this->normalizeDate((string)($request['data_fim'] ?? '')) : null;
         $semRegistro = (string)($request['sem_registro'] ?? 'skip');
         if (!in_array($semRegistro, ['skip', 'zero', 'falta'], true)) {
             $semRegistro = 'skip';
@@ -32,7 +34,12 @@ class FolhaController
             $this->safeRedirect('index.php?page=usuarios');
         }
 
-        if ($dateStart !== null && $dateEnd !== null && $dateStart > $dateEnd) {
+        if ($periodoTipo === 'custom' && $dateStart === null && $dateEnd === null) {
+            $_SESSION['upload_message'] = 'Selecione a data inicial ou final para usar período personalizado.';
+            $this->safeRedirect('index.php?page=usuarios');
+        }
+
+        if ($periodoTipo === 'custom' && $dateStart !== null && $dateEnd !== null && $dateStart > $dateEnd) {
             $_SESSION['upload_message'] = 'A data inicial não pode ser maior que a data final.';
             $this->safeRedirect('index.php?page=usuarios');
         }
@@ -40,6 +47,7 @@ class FolhaController
         $options = [
             'pis' => $selectedPis,
             'columns' => $selectedColumns,
+            'period_mode' => $periodoTipo,
             'date_start' => $dateStart,
             'date_end' => $dateEnd,
             'sem_registro' => $semRegistro,

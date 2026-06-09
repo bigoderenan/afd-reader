@@ -144,13 +144,25 @@ $renderUsuarioRows = static function (array $usuarios, bool $grupoAtivo) use ($m
 
             <div class="row g-3 align-items-end">
                 <div class="col-12 col-md-3">
+                    <label class="form-label mb-1">Período da exportação</label>
+                    <select id="exportPeriodoTipo" name="periodo_tipo" class="form-select form-select-sm bg-dark text-light border-secondary">
+                        <option value="month" selected>Mês selecionado</option>
+                        <option value="custom">Personalizado</option>
+                    </select>
+                </div>
+
+                <div class="col-12 col-md-3 export-custom-period-field d-none">
                     <label class="form-label mb-1">Data inicial <small class="text-secondary">opcional</small></label>
-                    <input id="exportDataInicio" type="date" name="data_inicio" class="form-control form-control-sm bg-dark text-light border-secondary">
+                    <input id="exportDataInicio" type="date" name="data_inicio" class="form-control form-control-sm bg-dark text-light border-secondary" disabled>
+                </div>
+
+                <div class="col-12 col-md-3 export-custom-period-field d-none">
+                    <label class="form-label mb-1">Data final <small class="text-secondary">opcional</small></label>
+                    <input id="exportDataFim" type="date" name="data_fim" class="form-control form-control-sm bg-dark text-light border-secondary" disabled>
                 </div>
 
                 <div class="col-12 col-md-3">
-                    <label class="form-label mb-1">Data final <small class="text-secondary">opcional</small></label>
-                    <input id="exportDataFim" type="date" name="data_fim" class="form-control form-control-sm bg-dark text-light border-secondary">
+                    <small id="selectedPeriodDetailedLabel" class="text-secondary d-block">Calculando mês inteiro selecionado.</small>
                 </div>
             </div>
 
@@ -326,7 +338,7 @@ $renderUsuarioRows = static function (array $usuarios, bool $grupoAtivo) use ($m
         var customStart = (byId('exportDataInicio') && byId('exportDataInicio').value) || '';
         var customEnd = (byId('exportDataFim') && byId('exportDataFim').value) || '';
 
-        if (customStart || customEnd) {
+        if (isCustomPeriod() && (customStart || customEnd)) {
             return {
                 start: customStart || startDefault,
                 end: customEnd || endDefault
@@ -347,29 +359,81 @@ $renderUsuarioRows = static function (array $usuarios, bool $grupoAtivo) use ($m
         return value.slice(8, 10) + '/' + value.slice(5, 7) + '/' + value.slice(0, 4);
     }
 
+    function isCustomPeriod() {
+        var select = byId('exportPeriodoTipo');
+        return !!(select && select.value === 'custom');
+    }
+
+    function updateCustomPeriodFields() {
+        var custom = isCustomPeriod();
+        all('.export-custom-period-field').forEach(function (field) {
+            field.classList.toggle('d-none', !custom);
+        });
+        ['exportDataInicio', 'exportDataFim'].forEach(function (id) {
+            var input = byId(id);
+            if (input) {
+                input.disabled = !custom;
+            }
+        });
+    }
+
     function updatePeriodSummary() {
         var label = byId('selectedPeriodLabel');
-        if (!label) return;
-
+        var detailed = byId('selectedPeriodDetailedLabel');
         var bounds = monthBounds();
+        var custom = isCustomPeriod();
         var customStart = (byId('exportDataInicio') && byId('exportDataInicio').value) || '';
         var customEnd = (byId('exportDataFim') && byId('exportDataFim').value) || '';
 
-        label.classList.remove('text-danger', 'text-warning');
+        if (label) {
+            label.classList.remove('text-danger', 'text-warning');
+        }
+        if (detailed) {
+            detailed.classList.remove('text-danger', 'text-warning');
+        }
 
-        if (customStart && customEnd && customStart > customEnd) {
-            label.textContent = 'Período inválido: data inicial maior que a final';
-            label.classList.add('text-danger');
+        if (custom && customStart && customEnd && customStart > customEnd) {
+            if (label) {
+                label.textContent = 'Período: personalizado inválido';
+                label.classList.add('text-danger');
+            }
+            if (detailed) {
+                detailed.textContent = 'Data inicial maior que a data final.';
+                detailed.classList.add('text-danger');
+            }
             return;
         }
 
-        if (customStart || customEnd) {
-            label.textContent = 'Período: ' + formatDateBR(bounds.start) + ' a ' + formatDateBR(bounds.end);
-            label.classList.add('text-warning');
+        if (custom) {
+            if (!customStart && !customEnd) {
+                if (label) {
+                    label.textContent = 'Período: personalizado';
+                    label.classList.add('text-warning');
+                }
+                if (detailed) {
+                    detailed.textContent = 'Informe a data inicial ou final para calcular período personalizado.';
+                    detailed.classList.add('text-warning');
+                }
+                return;
+            }
+
+            if (label) {
+                label.textContent = 'Período: personalizado';
+                label.classList.add('text-warning');
+            }
+            if (detailed) {
+                detailed.textContent = 'Calculando período personalizado: ' + formatDateBR(bounds.start) + ' a ' + formatDateBR(bounds.end);
+                detailed.classList.add('text-warning');
+            }
             return;
         }
 
-        label.textContent = 'Período: ' + formatDateBR(bounds.start) + ' a ' + formatDateBR(bounds.end);
+        if (label) {
+            label.textContent = 'Período: mês selecionado';
+        }
+        if (detailed) {
+            detailed.textContent = 'Calculando mês inteiro: ' + formatDateBR(bounds.start) + ' a ' + formatDateBR(bounds.end);
+        }
     }
 
     function semRegistroMode() {
@@ -549,8 +613,10 @@ $renderUsuarioRows = static function (array $usuarios, bool $grupoAtivo) use ($m
         if (byId('employeeSearch')) byId('employeeSearch').value = '';
         if (byId('employeeStatusFilter')) byId('employeeStatusFilter').value = 'todos';
         if (byId('employeeSelectionFilter')) byId('employeeSelectionFilter').value = 'todos';
+        if (byId('exportPeriodoTipo')) byId('exportPeriodoTipo').value = 'month';
         if (byId('exportDataInicio')) byId('exportDataInicio').value = '';
         if (byId('exportDataFim')) byId('exportDataFim').value = '';
+        updateCustomPeriodFields();
         getRows().forEach(function (row) { setDisplay(row, true); });
         updatePeriodStatus();
         updatePeriodSummary();
@@ -683,8 +749,9 @@ $renderUsuarioRows = static function (array $usuarios, bool $grupoAtivo) use ($m
             });
         });
 
-        all('#exportMes, #exportAno, #exportDataInicio, #exportDataFim, input[name="sem_registro"]').forEach(function (item) {
+        all('#exportMes, #exportAno, #exportPeriodoTipo, #exportDataInicio, #exportDataFim, input[name="sem_registro"]').forEach(function (item) {
             item.addEventListener('change', function () {
+                updateCustomPeriodFields();
                 updateEspelhoLinks();
                 updatePeriodStatus();
                 applyEmployeeFilter(false);
@@ -706,7 +773,15 @@ $renderUsuarioRows = static function (array $usuarios, bool $grupoAtivo) use ($m
 
                 var customStart = (byId('exportDataInicio') && byId('exportDataInicio').value) || '';
                 var customEnd = (byId('exportDataFim') && byId('exportDataFim').value) || '';
-                if (customStart && customEnd && customStart > customEnd) {
+                if (isCustomPeriod() && !customStart && !customEnd) {
+                    event.preventDefault();
+                    setOptionsOpen(true);
+                    updatePeriodSummary();
+                    alert('Informe a data inicial ou a data final para usar período personalizado.');
+                    return;
+                }
+
+                if (isCustomPeriod() && customStart && customEnd && customStart > customEnd) {
                     event.preventDefault();
                     setOptionsOpen(true);
                     updatePeriodSummary();
@@ -727,6 +802,7 @@ $renderUsuarioRows = static function (array $usuarios, bool $grupoAtivo) use ($m
             setOptionsOpen(false);
         }
 
+        updateCustomPeriodFields();
         updateEspelhoLinks();
         updatePeriodStatus();
         updatePeriodSummary();

@@ -54,6 +54,7 @@ class FolhaPontoExportService
     public function export(array $parsed, int $mes, int $ano, string $outputPath, array $options = []): void
     {
         $options = $this->withEmpresaNome($parsed, $options);
+        $options = $this->withResolvedPeriod($parsed, $mes, $ano, $options);
 
         if (!class_exists(\ZipArchive::class)) {
             $this->exportXlsXml($parsed, $mes, $ano, preg_replace('/\.xlsx$/i', '.xls', $outputPath), $options);
@@ -69,6 +70,7 @@ class FolhaPontoExportService
     public function exportXlsXml(array $parsed, int $mes, int $ano, string $outputPath, array $options = []): void
     {
         $options = $this->withEmpresaNome($parsed, $options);
+        $options = $this->withResolvedPeriod($parsed, $mes, $ano, $options);
         $columns = $this->resolveColumns($options['columns'] ?? []);
         $rows = $this->buildRows($parsed, $mes, $ano, $options);
         $titulo = $this->sheetTitle($mes, $ano, $options);
@@ -322,23 +324,55 @@ class FolhaPontoExportService
 
     private function coverageForMonth(array $parsed, int $mes, int $ano, array $options = []): ?array
     {
+        $resolvedStart = $this->validDateOrNull((string)($options['resolved_period_start'] ?? ''));
+        $resolvedEnd = $this->validDateOrNull((string)($options['resolved_period_end'] ?? ''));
+        if ($resolvedStart !== null && $resolvedEnd !== null) {
+            return $resolvedStart <= $resolvedEnd ? [$resolvedStart, $resolvedEnd] : null;
+        }
+
         $monthStart = sprintf('%04d-%02d-01', $ano, $mes);
         $monthEnd = date('Y-m-t', strtotime($monthStart));
 
         $dateStart = $this->validDateOrNull((string)($options['date_start'] ?? ''));
         $dateEnd = $this->validDateOrNull((string)($options['date_end'] ?? ''));
+        $periodMode = (string)($options['period_mode'] ?? (($dateStart !== null || $dateEnd !== null) ? 'custom' : 'month'));
+        $periodMode = $periodMode === 'custom' ? 'custom' : 'month';
 
-        // Sem datas específicas, exporta o mês selecionado.
-        if ($dateStart === null && $dateEnd === null) {
-            return [$monthStart, $monthEnd];
+        if ($periodMode === 'custom') {
+            // Com período personalizado, a data informada pelo usuário define a regra.
+            // Quando só uma ponta é informada, a outra fica limitada ao mês selecionado.
+            $start = $dateStart ?? $monthStart;
+            $end = $dateEnd ?? $monthEnd;
+        } else {
+            // No modo mensal, datas preenchidas no formulário não interferem no cálculo.
+            $start = $monthStart;
+            $end = $monthEnd;
         }
 
-        // Com filtro por data, o período informado passa a ser a regra de cálculo.
-        // Quando somente uma ponta é informada, a outra fica limitada ao mês selecionado.
-        $start = $dateStart ?? $monthStart;
-        $end = $dateEnd ?? $monthEnd;
+        [$afdStart, $afdEnd] = $this->afdCoverage($parsed);
+        if ($afdStart !== null) {
+            $start = $this->maxDate($start, $afdStart);
+        }
+        if ($afdEnd !== null) {
+            $end = $this->minDate($end, $afdEnd);
+        }
 
         return $start <= $end ? [$start, $end] : null;
+    }
+
+    private function withResolvedPeriod(array $parsed, int $mes, int $ano, array $options): array
+    {
+        $coverage = $this->coverageForMonth($parsed, $mes, $ano, $options);
+        if ($coverage === null) {
+            unset($options['resolved_period_start'], $options['resolved_period_end']);
+            return $options;
+        }
+
+        [$start, $end] = $coverage;
+        $options['resolved_period_start'] = $start;
+        $options['resolved_period_end'] = $end;
+
+        return $options;
     }
 
     private function afdCoverage(array $parsed): array
@@ -349,6 +383,18 @@ class FolhaPontoExportService
             $data = (string)($m['data'] ?? '');
             if ($this->isIsoDate($data)) {
                 $datas[] = $data;
+            }
+        }
+
+        foreach (($parsed['usuarios'] ?? []) as $usuario) {
+            if (!is_array($usuario)) {
+                continue;
+            }
+            foreach (($usuario['marcacoes'] ?? []) as $m) {
+                $data = (string)($m['data'] ?? '');
+                if ($this->isIsoDate($data)) {
+                    $datas[] = $data;
+                }
             }
         }
 
@@ -363,6 +409,19 @@ class FolhaPontoExportService
             $data = (string)($parsed['empresa'][$key] ?? '');
             if ($this->isIsoDate($data)) {
                 $datas[] = $data;
+            }
+        }
+
+        $manualService = new MarcacaoManualService();
+        foreach ($manualService->all() as $ajustesPorPis) {
+            if (!is_array($ajustesPorPis)) {
+                continue;
+            }
+            foreach ($ajustesPorPis as $data => $ajuste) {
+                $batidas = is_array($ajuste) ? ($ajuste['batidas'] ?? []) : [];
+                if ($this->isIsoDate((string)$data) && is_array($batidas) && $manualService->hasEffectiveBatidas($batidas)) {
+                    $datas[] = (string)$data;
+                }
             }
         }
 
@@ -605,19 +664,30 @@ class FolhaPontoExportService
             9 => 'SETEMBRO', 10 => 'OUTUBRO', 11 => 'NOVEMBRO', 12 => 'DEZEMBRO',
         ];
 
-        $titulo = 'FOLHA DE PONTO ' . ($meses[$mes] ?? $mes) . ' ' . $ano;
+        $periodMode = (string)($options['period_mode'] ?? 'month');
+        $periodMode = $periodMode === 'custom' ? 'custom' : 'month';
         $empresaNome = $this->normalizeTitlePart((string)($options['empresa_nome'] ?? ''));
-        if ($empresaNome !== '') {
-            $titulo .= ' - ' . $empresaNome;
+
+        if ($periodMode === 'custom') {
+            $titulo = 'FOLHA DE PONTO PERSONALIZADA';
+            if ($empresaNome !== '') {
+                $titulo .= ' - ' . $empresaNome;
+            }
+
+            $dateStart = $this->validDateOrNull((string)($options['resolved_period_start'] ?? $options['date_start'] ?? ''));
+            $dateEnd = $this->validDateOrNull((string)($options['resolved_period_end'] ?? $options['date_end'] ?? ''));
+            if ($dateStart !== null || $dateEnd !== null) {
+                $inicio = $dateStart ? date('d/m/Y', strtotime($dateStart)) : 'INÍCIO DO MÊS';
+                $fim = $dateEnd ? date('d/m/Y', strtotime($dateEnd)) : 'FIM DO MÊS';
+                $titulo .= ' - PERÍODO: ' . $inicio . ' A ' . $fim;
+            }
+
+            return $titulo;
         }
 
-        $dateStart = $this->validDateOrNull((string)($options['date_start'] ?? ''));
-        $dateEnd = $this->validDateOrNull((string)($options['date_end'] ?? ''));
-
-        if ($dateStart !== null || $dateEnd !== null) {
-            $inicio = $dateStart ? date('d/m/Y', strtotime($dateStart)) : 'INÍCIO DO MÊS';
-            $fim = $dateEnd ? date('d/m/Y', strtotime($dateEnd)) : 'FIM DO MÊS';
-            $titulo .= ' - PERÍODO: ' . $inicio . ' A ' . $fim;
+        $titulo = 'FOLHA DE PONTO ' . ($meses[$mes] ?? $mes) . ' ' . $ano;
+        if ($empresaNome !== '') {
+            $titulo .= ' - ' . $empresaNome;
         }
 
         return $titulo;
