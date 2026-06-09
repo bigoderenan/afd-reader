@@ -15,7 +15,7 @@ final class Auth
 
     public static function check(): bool
     {
-        return isset($_SESSION['user']);
+        return true;
     }
 
     public static function attempt(string $username, string $password): bool
@@ -60,9 +60,6 @@ final class Auth
 
     public static function require(): void
     {
-        if (!self::check()) {
-            header('Location: ' . url('/login'));
-            exit;
-        }
+        // Login desativado: nenhuma rota deve redirecionar para /login.
     }
 }

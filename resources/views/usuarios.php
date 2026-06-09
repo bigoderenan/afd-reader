@@ -114,10 +114,10 @@ $renderUsuarioRows = static function (array $usuarios, bool $grupoAtivo): void {
             </select>
         </div>
 
-        <button type="button" class="btn btn-outline-info btn-sm filter-action" id="applyEmployeeFilter" onclick="afdUsuariosApplyFilter()">🔍 Pesquisar com filtro</button>
-        <button type="button" class="btn btn-outline-secondary btn-sm filter-action" id="clearEmployeeFilter" onclick="afdUsuariosClearFilter()">× Limpar filtro</button>
-        <button type="button" class="btn btn-outline-light btn-sm filter-action" id="toggleAdvancedExportOptions" onclick="afdUsuariosToggleOptions()" aria-expanded="false" aria-controls="advancedExportOptions">⚙ Opções</button>
-        <button type="submit" class="btn btn-green btn-sm filter-action filter-action--export">📤 Exportar dados</button>
+        <button type="button" class="btn btn-outline-info btn-sm filter-action" id="applyEmployeeFilter" onclick="afdUsuariosApplyFilter()" title="Pesquisar com filtro">🔍 Pesquisar</button>
+        <button type="button" class="btn btn-outline-secondary btn-sm filter-action" id="clearEmployeeFilter" onclick="afdUsuariosClearFilter()" title="Limpar filtro">× Limpar</button>
+        <button type="button" class="btn btn-outline-light btn-sm filter-action" id="toggleAdvancedExportOptions" onclick="afdUsuariosToggleOptions()" aria-expanded="false" aria-controls="advancedExportOptions" title="Opções avançadas">⚙ Opções</button>
+        <button type="submit" class="btn btn-green btn-sm filter-action filter-action--export" title="Exportar dados">📤 Exportar</button>
     </div>
 
     <div class="export-mini-summary mb-3">

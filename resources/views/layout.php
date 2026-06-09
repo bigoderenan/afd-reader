@@ -11,7 +11,7 @@
     <title>Leitor de AFD</title>
     <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="assets/css/style.css?v=20260609-filter-v3" rel="stylesheet">
+    <link href="assets/css/style.css?v=20260609-filter-v4" rel="stylesheet">
 </head>
 <body>
     <?php $currentPage = $_GET['page'] ?? 'upload'; ?>
@@ -23,7 +23,6 @@
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-                    <?php if (isset($_SESSION['user'])): ?>
                     <li class="nav-item">
                         <a class="nav-link <?php echo $currentPage === 'upload' ? 'active' : ''; ?>" href="index.php?page=upload">Início</a>
                     </li>
@@ -39,23 +38,12 @@
                     <li class="nav-item">
                         <a class="nav-link <?php echo $currentPage === 'linhas' ? 'active' : ''; ?>" href="index.php?page=linhas">Linha a Linha</a>
                     </li>
-                    <?php endif; ?>
-                </ul>
-                <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
-                    <?php if (isset($_SESSION['user'])): ?>
-                    <li class="nav-item">
-                        <span class="navbar-text me-3">Usuário: <?php echo htmlspecialchars($_SESSION['user']); ?></span>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="index.php?page=logout">Sair</a>
-                    </li>
-                    <?php endif; ?>
                 </ul>
             </div>
         </div>
     </nav>
 
-    <div class="container my-4">
+    <div class="container-fluid app-container my-4">
         <?php
         // Include the requested view within the layout. If the view file is
         // missing, display a simple error message.

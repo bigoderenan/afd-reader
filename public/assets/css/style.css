@@ -488,3 +488,83 @@ body {
         margin-left: 0;
     }
 }
+
+
+/* Ajuste v4: topo sem login e filtro de usuários em uma linha no desktop */
+.app-container {
+    max-width: 1600px;
+}
+
+@media (min-width: 1200px) {
+    .afd-filter-strip {
+        display: grid;
+        grid-template-columns:
+            minmax(160px, 1.55fr)
+            minmax(120px, .75fr)
+            minmax(105px, .55fr)
+            minmax(130px, .75fr)
+            minmax(160px, .95fr)
+            max-content
+            max-content
+            max-content
+            max-content;
+        gap: 8px;
+        align-items: center;
+        flex-wrap: nowrap;
+    }
+
+    .afd-filter-strip .filter-control,
+    .afd-filter-strip .input-group,
+    .afd-filter-strip .form-control,
+    .afd-filter-strip .form-select {
+        width: 100%;
+        min-width: 0;
+    }
+
+    .afd-filter-strip .form-select,
+    .afd-filter-strip .form-control {
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .afd-filter-strip .input-group {
+        flex-wrap: nowrap;
+    }
+
+    .afd-filter-strip .input-group-text {
+        flex: 0 0 auto;
+    }
+
+    .afd-filter-strip .btn {
+        padding-left: 10px;
+        padding-right: 10px;
+        white-space: nowrap;
+    }
+
+    .filter-control--employee,
+    .filter-control--status,
+    .filter-control--year,
+    .filter-control--month,
+    .filter-control--selection,
+    .filter-action {
+        flex: initial;
+    }
+
+    .filter-action,
+    .filter-action--export {
+        width: auto;
+        min-width: 0;
+        margin-left: 0;
+    }
+
+    .filter-action--export {
+        justify-self: end;
+        font-weight: 800;
+    }
+}
+
+@media (max-width: 1199.98px) {
+    .filter-action--export {
+        margin-left: 0;
+    }
+}

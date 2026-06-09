@@ -12,7 +12,8 @@ if (file_exists(__DIR__ . '/../vendor/autoload.php')) {
     // Basic PSR-4 autoloader fallback
     spl_autoload_register(function ($class) {
         if (strpos($class, 'App\\') === 0) {
-            $path = __DIR__ . '/../' . str_replace('App\\', 'app/', $class) . '.php';
+            $relativeClass = substr($class, 4);
+            $path = __DIR__ . '/../app/' . str_replace('\\', '/', $relativeClass) . '.php';
             if (file_exists($path)) {
                 require $path;
             }
@@ -20,12 +21,16 @@ if (file_exists(__DIR__ . '/../vendor/autoload.php')) {
     });
 }
 
+$helpers = __DIR__ . '/../app/Helpers/functions.php';
+if (file_exists($helpers)) {
+    require_once $helpers;
+}
+
 use App\Controllers\UploadController;
 use App\Controllers\ArquivoController;
 use App\Controllers\EmpresaController;
 use App\Controllers\UsuariosController;
 use App\Controllers\LinhaController;
-use App\Controllers\LoginController;
 use App\Controllers\EspelhoController;
 use App\Controllers\CadastroController;
 use App\Controllers\FolhaController;
@@ -33,22 +38,14 @@ use App\Controllers\FolhaController;
 // Determine the requested page
 $page = $_GET['page'] ?? 'upload';
 
-// If the user is not authenticated, force login for protected pages
-$protected = ['upload', 'upload_process', 'arquivo', 'empresa', 'usuarios', 'linhas', 'espelho', 'salvar_jornada', 'cadastro', 'exportar_folha'];
-if (in_array($page, $protected, true) && !isset($_SESSION['user'])) {
-    $page = 'login';
-}
+// Login removido: todas as telas da aplicação ficam acessíveis diretamente.
 
 switch ($page) {
     case 'login':
-        (new LoginController())->index();
-        break;
     case 'login_auth':
-        (new LoginController())->authenticate();
-        break;
     case 'logout':
-        (new LoginController())->logout();
-        break;
+        header('Location: index.php?page=upload');
+        exit;
     case 'upload':
         (new UploadController())->index();
         break;

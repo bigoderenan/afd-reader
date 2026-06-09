@@ -12,30 +12,16 @@ final class AuthController extends Controller
 {
     public function login(): void
     {
-        if (Auth::check()) {
-            $this->redirect('/');
-        }
-        $this->view('auth/login', ['title' => 'Login'], 'auth/layout');
+        $this->redirect('/');
     }
 
     public function authenticate(): void
     {
-        Csrf::verify();
-        $username = trim((string)($_POST['username'] ?? ''));
-        $password = (string)($_POST['password'] ?? '');
-
-        if (Auth::attempt($username, $password)) {
-            $this->redirect('/');
-        }
-
-        $this->flash('danger', 'Usuário ou senha inválidos.');
-        $this->redirect('/login');
+        $this->redirect('/');
     }
 
     public function logout(): void
     {
-        Auth::logout();
-        header('Location: ' . url('/login'));
-        exit;
+        $this->redirect('/');
     }
 }
