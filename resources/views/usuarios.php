@@ -124,7 +124,7 @@ $renderUsuarioRows = static function (array $usuarios, bool $grupoAtivo) use ($m
         <span><strong id="selectedUsersCount">0</strong> selecionado(s)</span>
         <span><strong id="visibleUsersCount">0</strong> visível(eis)</span>
         <span id="selectedPeriodLabel">Período: mês completo</span>
-        <span id="semRegistroAutoHint" class="text-warning d-none">Funcionário sem registro selecionado: será exportado zerado com observação.</span>
+        <span id="semRegistroAutoHint" class="text-warning d-none" aria-live="polite">Funcionário sem registro selecionado: será exportado zerado com observação.</span>
 
         <div class="selection-actions-inline" aria-label="Ações de seleção dos colaboradores">
             <button type="button" class="btn btn-outline-light btn-sm" data-export-users="ativos" onclick="afdUsuariosSetExportUsers('ativos')">Ativos do filtro</button>
@@ -498,10 +498,36 @@ $renderUsuarioRows = static function (array $usuarios, bool $grupoAtivo) use ($m
     function updateSemRegistroHint() {
         var hint = byId('semRegistroAutoHint');
         if (!hint) return;
+
         var hasSem = all('.export-pis:checked:not(:disabled)').some(function (item) {
             return item.getAttribute('data-status') === 'sem_registro';
         });
-        hint.classList.toggle('d-none', !hasSem);
+
+        hint.classList.remove('text-warning', 'text-danger', 'text-secondary');
+
+        if (!hasSem) {
+            hint.textContent = '';
+            hint.classList.add('d-none');
+            return;
+        }
+
+        var mode = semRegistroMode();
+        hint.classList.remove('d-none');
+
+        if (mode === 'skip') {
+            hint.textContent = 'Funcionário sem registro selecionado: não será exportado.';
+            hint.classList.add('text-secondary');
+            return;
+        }
+
+        if (mode === 'falta') {
+            hint.textContent = 'Funcionário sem registro selecionado: será considerado falta integral.';
+            hint.classList.add('text-danger');
+            return;
+        }
+
+        hint.textContent = 'Funcionário sem registro selecionado: será exportado zerado com observação.';
+        hint.classList.add('text-warning');
     }
 
     function applyEmployeeFilter(uncheckHidden) {
