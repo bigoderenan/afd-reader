@@ -116,13 +116,14 @@ $renderUsuarioRows = static function (array $usuarios, bool $grupoAtivo) use ($m
 
         <button type="button" class="btn btn-outline-info btn-sm filter-action" id="applyEmployeeFilter" onclick="afdUsuariosApplyFilter()" title="Pesquisar com filtro">Pesquisar</button>
         <button type="button" class="btn btn-outline-secondary btn-sm filter-action" id="clearEmployeeFilter" onclick="afdUsuariosClearFilter()" title="Limpar filtro">Limpar</button>
-        <button type="button" class="btn btn-outline-light btn-sm filter-action" id="toggleAdvancedExportOptions" onclick="afdUsuariosToggleOptions()" aria-expanded="false" aria-controls="advancedExportOptions" title="Opções avançadas">Opções</button>
+        <button type="button" class="btn btn-outline-light btn-sm filter-action" id="toggleAdvancedExportOptions" onclick="return afdUsuariosToggleOptions(event)" aria-expanded="false" aria-controls="advancedExportOptions" title="Opções avançadas">Opções</button>
         <button type="submit" class="btn btn-green btn-sm filter-action filter-action--export" title="Exportar dados">Exportar</button>
     </div>
 
     <div class="export-mini-summary mb-3">
         <span><strong id="selectedUsersCount">0</strong> selecionado(s)</span>
         <span><strong id="visibleUsersCount">0</strong> visível(eis)</span>
+        <span id="selectedPeriodLabel">Período: mês completo</span>
         <span id="semRegistroAutoHint" class="text-warning d-none">Funcionário sem registro selecionado: será exportado zerado com observação.</span>
 
         <div class="selection-actions-inline" aria-label="Ações de seleção dos colaboradores">
@@ -325,10 +326,50 @@ $renderUsuarioRows = static function (array $usuarios, bool $grupoAtivo) use ($m
         var customStart = (byId('exportDataInicio') && byId('exportDataInicio').value) || '';
         var customEnd = (byId('exportDataFim') && byId('exportDataFim').value) || '';
 
+        if (customStart || customEnd) {
+            return {
+                start: customStart || startDefault,
+                end: customEnd || endDefault
+            };
+        }
+
         return {
-            start: customStart && customStart > startDefault ? customStart : startDefault,
-            end: customEnd && customEnd < endDefault ? customEnd : endDefault
+            start: startDefault,
+            end: endDefault
         };
+    }
+
+    function formatDateBR(value) {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(String(value || ''))) {
+            return '';
+        }
+
+        return value.slice(8, 10) + '/' + value.slice(5, 7) + '/' + value.slice(0, 4);
+    }
+
+    function updatePeriodSummary() {
+        var label = byId('selectedPeriodLabel');
+        if (!label) return;
+
+        var bounds = monthBounds();
+        var customStart = (byId('exportDataInicio') && byId('exportDataInicio').value) || '';
+        var customEnd = (byId('exportDataFim') && byId('exportDataFim').value) || '';
+
+        label.classList.remove('text-danger', 'text-warning');
+
+        if (customStart && customEnd && customStart > customEnd) {
+            label.textContent = 'Período inválido: data inicial maior que a final';
+            label.classList.add('text-danger');
+            return;
+        }
+
+        if (customStart || customEnd) {
+            label.textContent = 'Período: ' + formatDateBR(bounds.start) + ' a ' + formatDateBR(bounds.end);
+            label.classList.add('text-warning');
+            return;
+        }
+
+        label.textContent = 'Período: ' + formatDateBR(bounds.start) + ' a ' + formatDateBR(bounds.end);
     }
 
     function semRegistroMode() {
@@ -404,6 +445,7 @@ $renderUsuarioRows = static function (array $usuarios, bool $grupoAtivo) use ($m
         updateVisibleUsersCount();
         updateSelectedUsersCount();
         updateSemRegistroHint();
+        updatePeriodSummary();
     }
 
     function rowMatchesFilter(row) {
@@ -481,8 +523,11 @@ $renderUsuarioRows = static function (array $usuarios, bool $grupoAtivo) use ($m
         if (byId('employeeSearch')) byId('employeeSearch').value = '';
         if (byId('employeeStatusFilter')) byId('employeeStatusFilter').value = 'todos';
         if (byId('employeeSelectionFilter')) byId('employeeSelectionFilter').value = 'todos';
+        if (byId('exportDataInicio')) byId('exportDataInicio').value = '';
+        if (byId('exportDataFim')) byId('exportDataFim').value = '';
         getRows().forEach(function (row) { setDisplay(row, true); });
         updatePeriodStatus();
+        updatePeriodSummary();
     }
 
     function selectableRowsForMode(mode) {
@@ -530,14 +575,34 @@ $renderUsuarioRows = static function (array $usuarios, bool $grupoAtivo) use ($m
         updateSemRegistroHint();
     }
 
-    function toggleOptions() {
+    function setOptionsOpen(open) {
         var panel = byId('advancedExportOptions');
         var button = byId('toggleAdvancedExportOptions');
-        if (!panel) return;
-        var isOpen = panel.classList.contains('show');
-        panel.classList.toggle('show', !isOpen);
-        panel.style.display = isOpen ? 'none' : 'block';
-        if (button) button.setAttribute('aria-expanded', isOpen ? 'false' : 'true');
+        if (!panel) return false;
+
+        open = !!open;
+        panel.classList.toggle('show', open);
+        panel.style.display = open ? 'block' : 'none';
+        panel.hidden = !open;
+
+        if (button) {
+            button.setAttribute('aria-expanded', open ? 'true' : 'false');
+            button.textContent = open ? 'Ocultar opções' : 'Opções';
+        }
+
+        return open;
+    }
+
+    function toggleOptions(event) {
+        if (event && typeof event.preventDefault === 'function') {
+            event.preventDefault();
+        }
+
+        var panel = byId('advancedExportOptions');
+        if (!panel) return false;
+
+        setOptionsOpen(!panel.classList.contains('show'));
+        return false;
     }
 
     function setExportColumns(checked) {
@@ -569,15 +634,17 @@ $renderUsuarioRows = static function (array $usuarios, bool $grupoAtivo) use ($m
         var search = byId('employeeSearch');
         var form = byId('exportForm');
 
-        if (applyBtn) applyBtn.addEventListener('click', function () { applyEmployeeFilter(true); });
-        if (clearBtn) clearBtn.addEventListener('click', clearEmployeeFilter);
-        if (toggleBtn) toggleBtn.addEventListener('click', toggleOptions);
+        if (applyBtn && !applyBtn.getAttribute('onclick')) applyBtn.addEventListener('click', function () { applyEmployeeFilter(true); });
+        if (clearBtn && !clearBtn.getAttribute('onclick')) clearBtn.addEventListener('click', clearEmployeeFilter);
+        if (toggleBtn && !toggleBtn.getAttribute('onclick')) toggleBtn.addEventListener('click', toggleOptions);
         if (selectionFilter) selectionFilter.addEventListener('change', function () { applyEmployeeFilter(false); });
 
         all('[data-export-users]').forEach(function (button) {
-            button.addEventListener('click', function () {
-                setExportUsers(button.getAttribute('data-export-users') || 'ativos');
-            });
+            if (!button.getAttribute('onclick')) {
+                button.addEventListener('click', function () {
+                    setExportUsers(button.getAttribute('data-export-users') || 'ativos');
+                });
+            }
         });
 
         all('.export-pis').forEach(function (item) {
@@ -610,6 +677,17 @@ $renderUsuarioRows = static function (array $usuarios, bool $grupoAtivo) use ($m
         if (form) {
             form.addEventListener('submit', function (event) {
                 updatePeriodStatus();
+
+                var customStart = (byId('exportDataInicio') && byId('exportDataInicio').value) || '';
+                var customEnd = (byId('exportDataFim') && byId('exportDataFim').value) || '';
+                if (customStart && customEnd && customStart > customEnd) {
+                    event.preventDefault();
+                    setOptionsOpen(true);
+                    updatePeriodSummary();
+                    alert('A data inicial não pode ser maior que a data final.');
+                    return;
+                }
+
                 var selected = all('.export-pis:checked:not(:disabled)');
                 if (selected.length === 0) {
                     event.preventDefault();
@@ -620,11 +698,12 @@ $renderUsuarioRows = static function (array $usuarios, bool $grupoAtivo) use ($m
 
         var panel = byId('advancedExportOptions');
         if (panel && !panel.classList.contains('show')) {
-            panel.style.display = 'none';
+            setOptionsOpen(false);
         }
 
         updateEspelhoLinks();
         updatePeriodStatus();
+        updatePeriodSummary();
         applyEmployeeFilter(false);
     });
 })();

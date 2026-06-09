@@ -193,8 +193,7 @@ class FolhaPontoExportService
             }
 
             $jornada = $jornadaService->get($pis);
-            $espelho = $espelhoService->gerar($parsed, $pis, $mes, $ano, $jornada);
-            $espelhoRows = $this->filterRowsByDateRange($espelho['rows'] ?? [], $effectiveStart, $effectiveEnd);
+            $espelhoRows = $this->buildEspelhoRowsInPeriod($espelhoService, $parsed, $pis, $effectiveStart, $effectiveEnd, $jornada);
             $resumo = $this->summarizeEspelho($espelhoRows);
             $observacao = $this->buildObservacao($resumo);
 
@@ -326,18 +325,18 @@ class FolhaPontoExportService
         $monthStart = sprintf('%04d-%02d-01', $ano, $mes);
         $monthEnd = date('Y-m-t', strtotime($monthStart));
 
-        $start = $monthStart;
-        $end = $monthEnd;
-
         $dateStart = $this->validDateOrNull((string)($options['date_start'] ?? ''));
         $dateEnd = $this->validDateOrNull((string)($options['date_end'] ?? ''));
 
-        if ($dateStart !== null) {
-            $start = $this->maxDate($start, $dateStart);
+        // Sem datas específicas, exporta o mês selecionado.
+        if ($dateStart === null && $dateEnd === null) {
+            return [$monthStart, $monthEnd];
         }
-        if ($dateEnd !== null) {
-            $end = $this->minDate($end, $dateEnd);
-        }
+
+        // Com filtro por data, o período informado passa a ser a regra de cálculo.
+        // Quando somente uma ponta é informada, a outra fica limitada ao mês selecionado.
+        $start = $dateStart ?? $monthStart;
+        $end = $dateEnd ?? $monthEnd;
 
         return $start <= $end ? [$start, $end] : null;
     }
@@ -418,6 +417,34 @@ class FolhaPontoExportService
         $ultimo = $eventos[count($eventos) - 1];
         $data = (string)($ultimo['data'] ?? '');
         return (($ultimo['operacao'] ?? '') === 'E' && $this->isIsoDate($data)) ? $data : null;
+    }
+
+    private function buildEspelhoRowsInPeriod(EspelhoPontoService $espelhoService, array $parsed, string $pis, string $start, string $end, array $jornada): array
+    {
+        $rows = [];
+        $cursor = strtotime(substr($start, 0, 7) . '-01');
+        $limit = strtotime(substr($end, 0, 7) . '-01');
+
+        if ($cursor === false || $limit === false) {
+            return [];
+        }
+
+        while ($cursor <= $limit) {
+            $mes = (int)date('m', $cursor);
+            $ano = (int)date('Y', $cursor);
+            $espelho = $espelhoService->gerar($parsed, $pis, $mes, $ano, $jornada);
+            $rows = array_merge($rows, $this->filterRowsByDateRange($espelho['rows'] ?? [], $start, $end));
+            $cursor = strtotime('+1 month', $cursor);
+            if ($cursor === false) {
+                break;
+            }
+        }
+
+        usort($rows, static function ($a, $b) {
+            return strcmp((string)($a['data_iso'] ?? ''), (string)($b['data_iso'] ?? ''));
+        });
+
+        return $rows;
     }
 
     private function filterRowsByDateRange(array $rows, string $start, string $end): array
