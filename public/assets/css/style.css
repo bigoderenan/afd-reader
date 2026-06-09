@@ -423,7 +423,7 @@ body {
 .filter-control--status { flex: 0 1 155px; }
 .filter-control--year { flex: 0 0 120px; }
 .filter-control--month { flex: 0 0 170px; }
-.filter-control--date { flex: 0 1 170px; }
+.filter-control--date { flex: 0 1 228px; }
 .filter-control--selection { flex: 0 1 220px; }
 
 .filter-action {
@@ -489,6 +489,23 @@ body {
     }
 }
 
+
+@media (min-width: 769px) and (max-width: 1199.98px) {
+    .afd-filter-strip {
+        gap: 10px;
+    }
+
+    .filter-control--date {
+        flex: 1 1 230px;
+        min-width: 230px;
+    }
+
+    .filter-control--date .input-group-text {
+        min-width: 68px;
+        justify-content: center;
+    }
+}
+
 @media (max-width: 768px) {
     .selection-actions-inline {
         width: 100%;
@@ -524,16 +541,17 @@ body {
     .afd-filter-strip {
         display: grid;
         grid-template-columns:
-            minmax(170px, 1.45fr)
-            minmax(130px, .8fr)
-            minmax(155px, .85fr)
-            minmax(155px, .85fr)
-            minmax(170px, .95fr)
+            minmax(240px, 1.25fr)
+            minmax(170px, .72fr)
+            minmax(225px, .72fr)
+            minmax(225px, .72fr)
+            minmax(220px, .82fr)
             max-content
             max-content
             max-content
             max-content;
-        gap: 8px;
+        column-gap: 10px;
+        row-gap: 10px;
         align-items: center;
         flex-wrap: nowrap;
     }
@@ -554,6 +572,23 @@ body {
 
     .afd-filter-strip .input-group {
         flex-wrap: nowrap;
+    }
+
+    .afd-filter-strip .filter-control--date {
+        min-width: 225px;
+    }
+
+    .afd-filter-strip .filter-control--date .input-group-text {
+        min-width: 68px;
+        justify-content: center;
+        padding-left: 10px;
+        padding-right: 10px;
+    }
+
+    .afd-filter-strip .filter-control--date .form-control {
+        min-width: 146px;
+        padding-left: 12px;
+        padding-right: 12px;
     }
 
     .afd-filter-strip .input-group-text {
@@ -979,4 +1014,24 @@ a {
     color: var(--app-text) !important;
     border-color: var(--app-border-strong) !important;
     background-color: color-mix(in srgb, var(--app-surface) 82%, transparent) !important;
+}
+
+
+/* Ajuste v9: período por data com espaçamento legível */
+.afd-filter-strip .filter-control--date {
+    isolation: isolate;
+}
+
+.afd-filter-strip .filter-control--date .input-group-text {
+    letter-spacing: .02em;
+}
+
+.afd-filter-strip .filter-control--date .form-control[type="date"] {
+    font-variant-numeric: tabular-nums;
+}
+
+@media (min-width: 1200px) {
+    .afd-filter-strip .filter-control--date {
+        min-width: 225px;
+    }
 }

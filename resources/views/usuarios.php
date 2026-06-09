@@ -97,12 +97,12 @@ $renderUsuarioRows = static function (array $usuarios, bool $grupoAtivo) use ($m
         <input id="exportAno" type="hidden" name="ano" value="<?php echo htmlspecialchars((string)$anoAtual); ?>">
         <input id="exportMes" type="hidden" name="mes" value="<?php echo htmlspecialchars((string)$mesAtual); ?>">
 
-        <div class="input-group input-group-sm filter-control filter-control--date">
+        <div class="input-group input-group-sm filter-control filter-control--date filter-control--date-start">
             <span class="input-group-text bg-dark text-light border-secondary fw-bold">INÍCIO</span>
             <input id="exportDataInicio" type="date" name="data_inicio" value="<?php echo htmlspecialchars($dataInicioAtual); ?>" data-default-value="<?php echo htmlspecialchars($dataInicioAtual); ?>" class="form-control bg-dark text-light border-secondary" required>
         </div>
 
-        <div class="input-group input-group-sm filter-control filter-control--date">
+        <div class="input-group input-group-sm filter-control filter-control--date filter-control--date-end">
             <span class="input-group-text bg-dark text-light border-secondary fw-bold">FIM</span>
             <input id="exportDataFim" type="date" name="data_fim" value="<?php echo htmlspecialchars($dataFimAtual); ?>" data-default-value="<?php echo htmlspecialchars($dataFimAtual); ?>" class="form-control bg-dark text-light border-secondary" required>
         </div>
