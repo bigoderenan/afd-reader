@@ -134,6 +134,14 @@ class FolhaPontoExportService
         [$periodStart, $periodEnd] = $coverage;
         $selectedPis = $this->selectedPisMap($options['pis'] ?? []);
         $hasSelectedPis = !empty($selectedPis);
+        $requireSelected = !empty($options['require_selected']);
+        $semRegistroMode = $this->normalizeSemRegistroMode((string)($options['sem_registro'] ?? 'skip'));
+
+        // Segurança: quando a exportação vem da tela com filtro, nunca exporta
+        // todos por fallback caso nenhum checkbox tenha sido enviado.
+        if ($requireSelected && !$hasSelectedPis) {
+            return [];
+        }
 
         foreach ($usuarios as $pis => $usuario) {
             $pis = (string)$pis;
@@ -141,7 +149,7 @@ class FolhaPontoExportService
                 continue;
             }
 
-            if ($hasSelectedPis) {
+            if ($hasSelectedPis || $requireSelected) {
                 if (!isset($selectedPis[$pis])) {
                     continue;
                 }
@@ -149,9 +157,19 @@ class FolhaPontoExportService
                 continue;
             }
 
-            $effectiveStart = $this->maxDate($periodStart, $this->usuarioStartDate($usuario) ?? $periodStart);
-            $effectiveEnd = $periodEnd;
+            $usuarioStart = $this->usuarioStartDate($usuario);
             $usuarioEnd = $this->usuarioEndDate($usuario);
+
+            // Não exporta funcionário que ainda não existia no período ou que já havia sido excluído antes dele.
+            if ($usuarioStart !== null && $usuarioStart > $periodEnd) {
+                continue;
+            }
+            if ($usuarioEnd !== null && $usuarioEnd < $periodStart) {
+                continue;
+            }
+
+            $effectiveStart = $this->maxDate($periodStart, $usuarioStart ?? $periodStart);
+            $effectiveEnd = $periodEnd;
             if ($usuarioEnd !== null) {
                 $effectiveEnd = $this->minDate($periodEnd, $usuarioEnd);
             }
@@ -161,10 +179,30 @@ class FolhaPontoExportService
             }
 
             $nome = preg_replace('/\s+/', ' ', trim((string)($usuario['nome'] ?? $pis))) ?: $pis;
+            $hasMarksInPeriod = $this->usuarioHasMarksInRange($usuario, $effectiveStart, $effectiveEnd);
+
+            if (!$hasMarksInPeriod) {
+                if ($semRegistroMode === 'skip') {
+                    continue;
+                }
+
+                if ($semRegistroMode === 'zero') {
+                    $rows[] = $this->blankRow($pis, $nome, 'SEM REGISTRO NO PERÍODO');
+                    continue;
+                }
+
+                // Modo falta: segue para o cálculo do espelho e considera falta integral no período efetivo.
+            }
+
             $jornada = $jornadaService->get($pis);
             $espelho = $espelhoService->gerar($parsed, $pis, $mes, $ano, $jornada);
             $espelhoRows = $this->filterRowsByDateRange($espelho['rows'] ?? [], $effectiveStart, $effectiveEnd);
             $resumo = $this->summarizeEspelho($espelhoRows);
+            $observacao = $this->buildObservacao($resumo);
+
+            if (!$hasMarksInPeriod && $semRegistroMode === 'falta') {
+                $observacao = trim($observacao . ($observacao !== '' ? ' | ' : '') . 'SEM REGISTRO NO PERÍODO');
+            }
 
             $rows[] = [
                 'pis' => $pis,
@@ -182,7 +220,7 @@ class FolhaPontoExportService
                 'descTransporte' => '',
                 'planoSaude' => '',
                 'valeAlimentacao' => '',
-                'observacoes' => $this->buildObservacao($resumo),
+                'observacoes' => $observacao,
             ];
         }
 
@@ -191,6 +229,45 @@ class FolhaPontoExportService
         });
 
         return $rows;
+    }
+
+    private function normalizeSemRegistroMode(string $mode): string
+    {
+        return in_array($mode, ['skip', 'zero', 'falta'], true) ? $mode : 'skip';
+    }
+
+    private function usuarioHasMarksInRange(array $usuario, string $start, string $end): bool
+    {
+        foreach (($usuario['marcacoes'] ?? []) as $m) {
+            $data = (string)($m['data'] ?? '');
+            if ($this->isIsoDate($data) && $data >= $start && $data <= $end) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function blankRow(string $pis, string $nome, string $observacao = ''): array
+    {
+        return [
+            'pis' => $pis,
+            'nome' => $nome,
+            'adiantamento' => '',
+            'periculosidade' => '',
+            'gratificacao' => '',
+            'extra50' => '',
+            'extra100' => '',
+            'faltaHoras' => '',
+            'meioPeriodo' => '',
+            'datasMeioPeriodo' => '',
+            'faltas' => '',
+            'datasFalta' => '',
+            'descTransporte' => '',
+            'planoSaude' => '',
+            'valeAlimentacao' => '',
+            'observacoes' => $observacao,
+        ];
     }
 
     private function resolveColumns($columns): array
@@ -241,15 +318,9 @@ class FolhaPontoExportService
     {
         $monthStart = sprintf('%04d-%02d-01', $ano, $mes);
         $monthEnd = date('Y-m-t', strtotime($monthStart));
-        [$afdStart, $afdEnd] = $this->afdCoverage($parsed);
 
         $start = $monthStart;
         $end = $monthEnd;
-
-        if ($afdStart !== null && $afdEnd !== null) {
-            $start = $this->maxDate($start, $afdStart);
-            $end = $this->minDate($end, $afdEnd);
-        }
 
         $dateStart = $this->validDateOrNull((string)($options['date_start'] ?? ''));
         $dateEnd = $this->validDateOrNull((string)($options['date_end'] ?? ''));

@@ -62,6 +62,11 @@ class UsuariosController extends Controller
             $nome = preg_replace('/\s+/', ' ', $nome) ?: (string)$pis;
 
             $jornada = $jornadaService->get((string)$pis);
+            $markDates = $this->markDates($marks);
+            $usuarioInicio = $this->usuarioStartDate($user);
+            $usuarioFim = $this->usuarioEndDate($user);
+            $statusPeriodo = $this->statusPeriodo($user, $exportMes, $exportAno);
+
             $row = [
                 'pis'       => (string)$pis,
                 'nome'      => $nome,
@@ -69,6 +74,12 @@ class UsuariosController extends Controller
                 'primeira'  => $firstMark ? $this->formatDateOnly($firstMark['data'] ?? '') : '-',
                 'ultima'    => $lastMark ? $this->formatDateOnly($lastMark['data'] ?? '') : '-',
                 'cargaHoraria' => JornadaService::minutesToHour((int)($jornada['semanal_minutos'] ?? 2640)) . (!empty($jornada['custom']) ? '' : '*'),
+                'markDates' => implode(',', $markDates),
+                'usuarioInicio' => $usuarioInicio ?? '',
+                'usuarioFim' => $usuarioFim ?? '',
+                'statusCodigo' => $statusPeriodo['codigo'],
+                'statusLabel' => $statusPeriodo['label'],
+                'statusClass' => $statusPeriodo['class'],
             ];
 
             if (!empty($user['ativo'])) {
@@ -117,6 +128,92 @@ class UsuariosController extends Controller
         }
 
         return [(int)date('m'), (int)date('Y')];
+    }
+
+    private function markDates(array $marks): array
+    {
+        $datas = [];
+        foreach ($marks as $mark) {
+            $data = (string)($mark['data'] ?? '');
+            if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $data)) {
+                $datas[$data] = true;
+            }
+        }
+
+        $datas = array_keys($datas);
+        sort($datas);
+        return $datas;
+    }
+
+    private function usuarioStartDate(array $usuario): ?string
+    {
+        $datas = [];
+
+        foreach (($usuario['eventos'] ?? []) as $evento) {
+            $operacao = (string)($evento['operacao'] ?? '');
+            $data = (string)($evento['data'] ?? '');
+            if ($operacao === 'I' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $data)) {
+                $datas[] = $data;
+            }
+        }
+
+        foreach (($usuario['marcacoes'] ?? []) as $mark) {
+            $data = (string)($mark['data'] ?? '');
+            if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $data)) {
+                $datas[] = $data;
+            }
+        }
+
+        if (!$datas) {
+            return null;
+        }
+
+        sort($datas);
+        return $datas[0];
+    }
+
+    private function usuarioEndDate(array $usuario): ?string
+    {
+        $eventos = $usuario['eventos'] ?? [];
+        if (!$eventos) {
+            return null;
+        }
+
+        usort($eventos, static function ($a, $b) {
+            $da = (string)($a['datetime'] ?? (($a['data'] ?? '') . ' ' . ($a['hora'] ?? '')));
+            $db = (string)($b['datetime'] ?? (($b['data'] ?? '') . ' ' . ($b['hora'] ?? '')));
+            return strcmp($da, $db);
+        });
+
+        $ultimo = $eventos[count($eventos) - 1];
+        $data = (string)($ultimo['data'] ?? '');
+
+        return (($ultimo['operacao'] ?? '') === 'E' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $data)) ? $data : null;
+    }
+
+    private function statusPeriodo(array $usuario, int $mes, int $ano): array
+    {
+        $periodStart = sprintf('%04d-%02d-01', $ano, $mes);
+        $periodEnd = date('Y-m-t', strtotime($periodStart));
+        $usuarioStart = $this->usuarioStartDate($usuario);
+        $usuarioEnd = $this->usuarioEndDate($usuario);
+
+        if ($usuarioStart !== null && $usuarioStart > $periodEnd) {
+            return ['codigo' => 'incluido_apos', 'label' => 'Incluído após o período', 'class' => 'status-muted'];
+        }
+
+        if ($usuarioEnd !== null && $usuarioEnd < $periodStart) {
+            return ['codigo' => 'excluido_antes', 'label' => 'Excluído antes do período', 'class' => 'status-muted'];
+        }
+
+        foreach (($usuario['marcacoes'] ?? []) as $mark) {
+            $data = (string)($mark['data'] ?? '');
+            if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $data) && $data >= $periodStart && $data <= $periodEnd) {
+                return ['codigo' => 'com_registro', 'label' => 'Com registro no período', 'class' => 'status-ok'];
+            }
+        }
+
+        return ['codigo' => 'sem_registro', 'label' => 'Sem registro no período', 'class' => 'status-warning'];
     }
 
     private function formatDateOnly(string $date): string

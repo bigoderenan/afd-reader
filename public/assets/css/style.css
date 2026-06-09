@@ -129,3 +129,178 @@ body {
         border: 1px solid #000;
     }
 }
+
+/* Export filter panel */
+.usuarios-page-header {
+    max-width: 100%;
+}
+
+.export-panel {
+    background: #1f2427;
+    border: 1px solid #49545a;
+    border-radius: 6px;
+    overflow: hidden;
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.18);
+}
+
+.export-panel__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 12px 16px;
+    background: linear-gradient(90deg, #198754, #176843);
+    color: #fff;
+}
+
+.export-panel__title {
+    font-weight: 800;
+    font-size: 1rem;
+    line-height: 1.2;
+}
+
+.export-panel__subtitle {
+    color: rgba(255, 255, 255, 0.78);
+    font-size: 0.84rem;
+    margin-top: 2px;
+}
+
+.export-counter {
+    background: rgba(0, 0, 0, 0.22);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 999px;
+    padding: 6px 12px;
+    font-size: 0.86rem;
+    white-space: nowrap;
+}
+
+.export-panel__body {
+    padding: 16px;
+}
+
+.export-main-button {
+    min-height: 31px;
+    font-weight: 700;
+}
+
+.export-panel__columns {
+    background: #181d20;
+    border: 1px solid #323c42;
+    border-radius: 5px;
+    padding: 12px;
+}
+
+.export-columns-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    gap: 8px 12px;
+}
+
+.export-column-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #22282b;
+    border: 1px solid #39434a;
+    border-radius: 4px;
+    margin: 0;
+    padding: 8px 10px;
+    color: #f1f1f1;
+    font-size: 0.86rem;
+}
+
+.export-column-option--locked {
+    color: #aab4ba;
+    background: #1c2124;
+}
+
+.export-column-option small {
+    color: #8d989f;
+}
+
+.usuarios-table th,
+.usuarios-table td {
+    white-space: nowrap;
+}
+
+@media (max-width: 768px) {
+    .export-panel__header {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .export-counter {
+        white-space: normal;
+    }
+}
+
+.export-panel__rules {
+    background: #181d20;
+    border: 1px solid #323c42;
+    border-radius: 5px;
+    padding: 12px;
+}
+
+.export-rules-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+    gap: 8px 12px;
+}
+
+.export-rule-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #22282b;
+    border: 1px solid #39434a;
+    border-radius: 4px;
+    margin: 0;
+    padding: 9px 10px;
+    color: #f1f1f1;
+    font-size: 0.86rem;
+}
+
+.export-rule-option small {
+    display: block;
+    color: #8d989f;
+    font-size: 0.76rem;
+}
+
+.period-status {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 168px;
+    border-radius: 999px;
+    padding: 4px 9px;
+    border: 1px solid transparent;
+    font-size: 0.78rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.period-status.status-ok {
+    background: rgba(25, 135, 84, 0.18);
+    border-color: rgba(25, 135, 84, 0.65);
+    color: #45d184;
+}
+
+.period-status.status-warning {
+    background: rgba(255, 193, 7, 0.15);
+    border-color: rgba(255, 193, 7, 0.55);
+    color: #f5c542;
+}
+
+.period-status.status-muted {
+    background: rgba(108, 117, 125, 0.18);
+    border-color: rgba(108, 117, 125, 0.55);
+    color: #adb5bd;
+}
+
+.export-row.status-warning td {
+    background-color: rgba(255, 193, 7, 0.035) !important;
+}
+
+.export-row.status-muted td {
+    opacity: 0.72;
+}

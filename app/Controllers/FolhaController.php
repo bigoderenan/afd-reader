@@ -22,6 +22,10 @@ class FolhaController
         $selectedColumns = $this->normalizeList($request['columns'] ?? []);
         $dateStart = $this->normalizeDate((string)($request['data_inicio'] ?? ''));
         $dateEnd = $this->normalizeDate((string)($request['data_fim'] ?? ''));
+        $semRegistro = (string)($request['sem_registro'] ?? 'skip');
+        if (!in_array($semRegistro, ['skip', 'zero', 'falta'], true)) {
+            $semRegistro = 'skip';
+        }
 
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$selectedPis) {
             $_SESSION['upload_message'] = 'Selecione pelo menos um colaborador para exportar.';
@@ -38,6 +42,10 @@ class FolhaController
             'columns' => $selectedColumns,
             'date_start' => $dateStart,
             'date_end' => $dateEnd,
+            'sem_registro' => $semRegistro,
+            // Exportação iniciada pela tela de usuários deve respeitar estritamente
+            // somente os colaboradores marcados na tabela.
+            'require_selected' => true,
         ];
 
         $useXlsx = class_exists(\ZipArchive::class);
