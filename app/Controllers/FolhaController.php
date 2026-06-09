@@ -34,14 +34,22 @@ class FolhaController
             $this->safeRedirect('index.php?page=usuarios');
         }
 
-        if ($periodoTipo === 'custom' && $dateStart === null && $dateEnd === null) {
-            $_SESSION['upload_message'] = 'Selecione a data inicial ou final para usar período personalizado.';
+        if ($periodoTipo === 'custom' && ($dateStart === null || $dateEnd === null)) {
+            $_SESSION['upload_message'] = 'Informe a data inicial e a data final para exportar.';
             $this->safeRedirect('index.php?page=usuarios');
         }
 
         if ($periodoTipo === 'custom' && $dateStart !== null && $dateEnd !== null && $dateStart > $dateEnd) {
             $_SESSION['upload_message'] = 'A data inicial não pode ser maior que a data final.';
             $this->safeRedirect('index.php?page=usuarios');
+        }
+
+        if ($periodoTipo === 'custom') {
+            $referenceDate = $dateStart ?? $dateEnd;
+            if ($referenceDate !== null) {
+                $mes = (int)substr($referenceDate, 5, 2);
+                $ano = (int)substr($referenceDate, 0, 4);
+            }
         }
 
         $options = [
@@ -58,14 +66,32 @@ class FolhaController
 
         $useXlsx = class_exists(\ZipArchive::class);
         $extension = $useXlsx ? 'xlsx' : 'xls';
-        $downloadName = sprintf('folha_ponto_%04d_%02d.%s', $ano, $mes, $extension);
+        if ($periodoTipo === 'custom' && $dateStart !== null && $dateEnd !== null) {
+            $downloadName = sprintf(
+                'folha_ponto_%s_%s.%s',
+                str_replace('-', '', $dateStart),
+                str_replace('-', '', $dateEnd),
+                $extension
+            );
+        } else {
+            $downloadName = sprintf('folha_ponto_%04d_%02d.%s', $ano, $mes, $extension);
+        }
 
         try {
             $dir = $this->resolveExportDirectory();
+            if ($periodoTipo === 'custom' && $dateStart !== null && $dateEnd !== null) {
+                $filePrefix = sprintf(
+                    'folha_ponto_%s_%s',
+                    str_replace('-', '', $dateStart),
+                    str_replace('-', '', $dateEnd)
+                );
+            } else {
+                $filePrefix = sprintf('folha_ponto_%04d_%02d', $ano, $mes);
+            }
+
             $path = $dir . DIRECTORY_SEPARATOR . sprintf(
-                'folha_ponto_%04d_%02d_%s_%s.%s',
-                $ano,
-                $mes,
+                '%s_%s_%s.%s',
+                $filePrefix,
                 date('Ymd_His'),
                 bin2hex(random_bytes(3)),
                 $extension

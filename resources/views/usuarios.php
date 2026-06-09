@@ -7,6 +7,8 @@ $mesesExport = [
 
 $mesAtual = (int)($exportMes ?? date('m'));
 $anoAtual = (int)($exportAno ?? date('Y'));
+$dataInicioAtual = sprintf('%04d-%02d-01', $anoAtual, $mesAtual);
+$dataFimAtual = date('Y-m-t', strtotime($dataInicioAtual));
 $exportColumns = $exportColumns ?? [
     'nome' => 'COLABORADOR',
     'adiantamento' => 'ADIANTAMENTO',
@@ -91,18 +93,18 @@ $renderUsuarioRows = static function (array $usuarios, bool $grupoAtivo) use ($m
             </select>
         </div>
 
-        <div class="input-group input-group-sm filter-control filter-control--year">
-            <span class="input-group-text bg-primary text-white border-primary fw-bold">ANO</span>
-            <input id="exportAno" type="number" name="ano" value="<?php echo htmlspecialchars((string)$anoAtual); ?>" min="2000" max="2100" class="form-control bg-dark text-light border-primary">
+        <input id="exportPeriodoTipo" type="hidden" name="periodo_tipo" value="custom">
+        <input id="exportAno" type="hidden" name="ano" value="<?php echo htmlspecialchars((string)$anoAtual); ?>">
+        <input id="exportMes" type="hidden" name="mes" value="<?php echo htmlspecialchars((string)$mesAtual); ?>">
+
+        <div class="input-group input-group-sm filter-control filter-control--date">
+            <span class="input-group-text bg-dark text-light border-secondary fw-bold">INÍCIO</span>
+            <input id="exportDataInicio" type="date" name="data_inicio" value="<?php echo htmlspecialchars($dataInicioAtual); ?>" data-default-value="<?php echo htmlspecialchars($dataInicioAtual); ?>" class="form-control bg-dark text-light border-secondary" required>
         </div>
 
-        <div class="input-group input-group-sm filter-control filter-control--month">
-            <span class="input-group-text bg-dark text-light border-secondary fw-bold">MÊS</span>
-            <select id="exportMes" name="mes" class="form-select bg-dark text-light border-secondary">
-                <?php foreach ($mesesExport as $num => $label): ?>
-                    <option value="<?php echo $num; ?>" <?php echo $num === $mesAtual ? 'selected' : ''; ?>><?php echo $label; ?></option>
-                <?php endforeach; ?>
-            </select>
+        <div class="input-group input-group-sm filter-control filter-control--date">
+            <span class="input-group-text bg-dark text-light border-secondary fw-bold">FIM</span>
+            <input id="exportDataFim" type="date" name="data_fim" value="<?php echo htmlspecialchars($dataFimAtual); ?>" data-default-value="<?php echo htmlspecialchars($dataFimAtual); ?>" class="form-control bg-dark text-light border-secondary" required>
         </div>
 
         <div class="filter-control filter-control--selection">
@@ -123,7 +125,8 @@ $renderUsuarioRows = static function (array $usuarios, bool $grupoAtivo) use ($m
     <div class="export-mini-summary mb-3">
         <span><strong id="selectedUsersCount">0</strong> selecionado(s)</span>
         <span><strong id="visibleUsersCount">0</strong> visível(eis)</span>
-        <span id="selectedPeriodLabel">Período: mês completo</span>
+        <span id="selectedPeriodLabel">Período: <?php echo date('d/m/Y', strtotime($dataInicioAtual)); ?> a <?php echo date('d/m/Y', strtotime($dataFimAtual)); ?></span>
+        <span id="selectedPeriodDetailedLabel" class="text-secondary">Calculando período selecionado.</span>
         <span id="semRegistroAutoHint" class="text-warning d-none" aria-live="polite">Funcionário sem registro selecionado: será exportado zerado com observação.</span>
 
         <div class="selection-actions-inline" aria-label="Ações de seleção dos colaboradores">
@@ -138,31 +141,7 @@ $renderUsuarioRows = static function (array $usuarios, bool $grupoAtivo) use ($m
             <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
                 <div>
                     <strong>Opções avançadas da exportação</strong>
-                    <small class="text-secondary d-block">Datas específicas, tratamento dos sem registro e colunas da planilha.</small>
-                </div>
-            </div>
-
-            <div class="row g-3 align-items-end">
-                <div class="col-12 col-md-3">
-                    <label class="form-label mb-1">Período da exportação</label>
-                    <select id="exportPeriodoTipo" name="periodo_tipo" class="form-select form-select-sm bg-dark text-light border-secondary">
-                        <option value="month" selected>Mês selecionado</option>
-                        <option value="custom">Personalizado</option>
-                    </select>
-                </div>
-
-                <div class="col-12 col-md-3 export-custom-period-field d-none">
-                    <label class="form-label mb-1">Data inicial <small class="text-secondary">opcional</small></label>
-                    <input id="exportDataInicio" type="date" name="data_inicio" class="form-control form-control-sm bg-dark text-light border-secondary" disabled>
-                </div>
-
-                <div class="col-12 col-md-3 export-custom-period-field d-none">
-                    <label class="form-label mb-1">Data final <small class="text-secondary">opcional</small></label>
-                    <input id="exportDataFim" type="date" name="data_fim" class="form-control form-control-sm bg-dark text-light border-secondary" disabled>
-                </div>
-
-                <div class="col-12 col-md-3">
-                    <small id="selectedPeriodDetailedLabel" class="text-secondary d-block">Calculando mês inteiro selecionado.</small>
+                    <small class="text-secondary d-block">Tratamento dos sem registro e colunas da planilha.</small>
                 </div>
             </div>
 
@@ -372,18 +351,31 @@ $renderUsuarioRows = static function (array $usuarios, bool $grupoAtivo) use ($m
         ['exportDataInicio', 'exportDataFim'].forEach(function (id) {
             var input = byId(id);
             if (input) {
-                input.disabled = !custom;
+                input.disabled = false;
             }
         });
+    }
+
+    function syncMonthYearFromPeriod() {
+        var start = (byId('exportDataInicio') && byId('exportDataInicio').value) || '';
+        var end = (byId('exportDataFim') && byId('exportDataFim').value) || '';
+        var ref = /^\d{4}-\d{2}-\d{2}$/.test(start) ? start : end;
+
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(ref)) {
+            return;
+        }
+
+        var year = byId('exportAno');
+        var month = byId('exportMes');
+        if (year) year.value = ref.slice(0, 4);
+        if (month) month.value = String(Number(ref.slice(5, 7)));
     }
 
     function updatePeriodSummary() {
         var label = byId('selectedPeriodLabel');
         var detailed = byId('selectedPeriodDetailedLabel');
-        var bounds = monthBounds();
-        var custom = isCustomPeriod();
-        var customStart = (byId('exportDataInicio') && byId('exportDataInicio').value) || '';
-        var customEnd = (byId('exportDataFim') && byId('exportDataFim').value) || '';
+        var start = (byId('exportDataInicio') && byId('exportDataInicio').value) || '';
+        var end = (byId('exportDataFim') && byId('exportDataFim').value) || '';
 
         if (label) {
             label.classList.remove('text-danger', 'text-warning');
@@ -392,9 +384,21 @@ $renderUsuarioRows = static function (array $usuarios, bool $grupoAtivo) use ($m
             detailed.classList.remove('text-danger', 'text-warning');
         }
 
-        if (custom && customStart && customEnd && customStart > customEnd) {
+        if (!start || !end) {
             if (label) {
-                label.textContent = 'Período: personalizado inválido';
+                label.textContent = 'Período: datas pendentes';
+                label.classList.add('text-warning');
+            }
+            if (detailed) {
+                detailed.textContent = 'Informe data inicial e data final.';
+                detailed.classList.add('text-warning');
+            }
+            return;
+        }
+
+        if (start > end) {
+            if (label) {
+                label.textContent = 'Período: inválido';
                 label.classList.add('text-danger');
             }
             if (detailed) {
@@ -404,35 +408,11 @@ $renderUsuarioRows = static function (array $usuarios, bool $grupoAtivo) use ($m
             return;
         }
 
-        if (custom) {
-            if (!customStart && !customEnd) {
-                if (label) {
-                    label.textContent = 'Período: personalizado';
-                    label.classList.add('text-warning');
-                }
-                if (detailed) {
-                    detailed.textContent = 'Informe a data inicial ou final para calcular período personalizado.';
-                    detailed.classList.add('text-warning');
-                }
-                return;
-            }
-
-            if (label) {
-                label.textContent = 'Período: personalizado';
-                label.classList.add('text-warning');
-            }
-            if (detailed) {
-                detailed.textContent = 'Calculando período personalizado: ' + formatDateBR(bounds.start) + ' a ' + formatDateBR(bounds.end);
-                detailed.classList.add('text-warning');
-            }
-            return;
-        }
-
         if (label) {
-            label.textContent = 'Período: mês selecionado';
+            label.textContent = 'Período: ' + formatDateBR(start) + ' a ' + formatDateBR(end);
         }
         if (detailed) {
-            detailed.textContent = 'Calculando mês inteiro: ' + formatDateBR(bounds.start) + ' a ' + formatDateBR(bounds.end);
+            detailed.textContent = 'Exportação por data definida pelo usuário.';
         }
     }
 
@@ -613,10 +593,13 @@ $renderUsuarioRows = static function (array $usuarios, bool $grupoAtivo) use ($m
         if (byId('employeeSearch')) byId('employeeSearch').value = '';
         if (byId('employeeStatusFilter')) byId('employeeStatusFilter').value = 'todos';
         if (byId('employeeSelectionFilter')) byId('employeeSelectionFilter').value = 'todos';
-        if (byId('exportPeriodoTipo')) byId('exportPeriodoTipo').value = 'month';
-        if (byId('exportDataInicio')) byId('exportDataInicio').value = '';
-        if (byId('exportDataFim')) byId('exportDataFim').value = '';
+        ['exportDataInicio', 'exportDataFim'].forEach(function (id) {
+            var input = byId(id);
+            if (input) input.value = input.getAttribute('data-default-value') || input.defaultValue || '';
+        });
+        syncMonthYearFromPeriod();
         updateCustomPeriodFields();
+        updateEspelhoLinks();
         getRows().forEach(function (row) { setDisplay(row, true); });
         updatePeriodStatus();
         updatePeriodSummary();
@@ -749,8 +732,9 @@ $renderUsuarioRows = static function (array $usuarios, bool $grupoAtivo) use ($m
             });
         });
 
-        all('#exportMes, #exportAno, #exportPeriodoTipo, #exportDataInicio, #exportDataFim, input[name="sem_registro"]').forEach(function (item) {
+        all('#exportDataInicio, #exportDataFim, input[name="sem_registro"]').forEach(function (item) {
             item.addEventListener('change', function () {
+                syncMonthYearFromPeriod();
                 updateCustomPeriodFields();
                 updateEspelhoLinks();
                 updatePeriodStatus();
@@ -773,17 +757,17 @@ $renderUsuarioRows = static function (array $usuarios, bool $grupoAtivo) use ($m
 
                 var customStart = (byId('exportDataInicio') && byId('exportDataInicio').value) || '';
                 var customEnd = (byId('exportDataFim') && byId('exportDataFim').value) || '';
-                if (isCustomPeriod() && !customStart && !customEnd) {
+                syncMonthYearFromPeriod();
+
+                if (!customStart || !customEnd) {
                     event.preventDefault();
-                    setOptionsOpen(true);
                     updatePeriodSummary();
-                    alert('Informe a data inicial ou a data final para usar período personalizado.');
+                    alert('Informe a data inicial e a data final para exportar.');
                     return;
                 }
 
-                if (isCustomPeriod() && customStart && customEnd && customStart > customEnd) {
+                if (customStart > customEnd) {
                     event.preventDefault();
-                    setOptionsOpen(true);
                     updatePeriodSummary();
                     alert('A data inicial não pode ser maior que a data final.');
                     return;
@@ -802,6 +786,7 @@ $renderUsuarioRows = static function (array $usuarios, bool $grupoAtivo) use ($m
             setOptionsOpen(false);
         }
 
+        syncMonthYearFromPeriod();
         updateCustomPeriodFields();
         updateEspelhoLinks();
         updatePeriodStatus();

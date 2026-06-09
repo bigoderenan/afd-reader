@@ -423,6 +423,7 @@ body {
 .filter-control--status { flex: 0 1 155px; }
 .filter-control--year { flex: 0 0 120px; }
 .filter-control--month { flex: 0 0 170px; }
+.filter-control--date { flex: 0 1 170px; }
 .filter-control--selection { flex: 0 1 220px; }
 
 .filter-action {
@@ -523,11 +524,11 @@ body {
     .afd-filter-strip {
         display: grid;
         grid-template-columns:
-            minmax(160px, 1.55fr)
-            minmax(120px, .75fr)
-            minmax(105px, .55fr)
-            minmax(130px, .75fr)
-            minmax(160px, .95fr)
+            minmax(170px, 1.45fr)
+            minmax(130px, .8fr)
+            minmax(155px, .85fr)
+            minmax(155px, .85fr)
+            minmax(170px, .95fr)
             max-content
             max-content
             max-content
@@ -569,6 +570,7 @@ body {
     .filter-control--status,
     .filter-control--year,
     .filter-control--month,
+    .filter-control--date,
     .filter-control--selection,
     .filter-action {
         flex: initial;
