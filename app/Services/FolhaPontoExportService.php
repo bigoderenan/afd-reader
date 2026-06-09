@@ -53,6 +53,8 @@ class FolhaPontoExportService
 
     public function export(array $parsed, int $mes, int $ano, string $outputPath, array $options = []): void
     {
+        $options = $this->withEmpresaNome($parsed, $options);
+
         if (!class_exists(\ZipArchive::class)) {
             $this->exportXlsXml($parsed, $mes, $ano, preg_replace('/\.xlsx$/i', '.xls', $outputPath), $options);
             return;
@@ -66,6 +68,7 @@ class FolhaPontoExportService
 
     public function exportXlsXml(array $parsed, int $mes, int $ano, string $outputPath, array $options = []): void
     {
+        $options = $this->withEmpresaNome($parsed, $options);
         $columns = $this->resolveColumns($options['columns'] ?? []);
         $rows = $this->buildRows($parsed, $mes, $ano, $options);
         $titulo = $this->sheetTitle($mes, $ano, $options);
@@ -522,16 +525,55 @@ class FolhaPontoExportService
         ];
 
         $titulo = 'FOLHA DE PONTO ' . ($meses[$mes] ?? $mes) . ' ' . $ano;
+        $empresaNome = $this->normalizeTitlePart((string)($options['empresa_nome'] ?? ''));
+        if ($empresaNome !== '') {
+            $titulo .= ' - ' . $empresaNome;
+        }
+
         $dateStart = $this->validDateOrNull((string)($options['date_start'] ?? ''));
         $dateEnd = $this->validDateOrNull((string)($options['date_end'] ?? ''));
 
         if ($dateStart !== null || $dateEnd !== null) {
             $inicio = $dateStart ? date('d/m/Y', strtotime($dateStart)) : 'INÍCIO DO MÊS';
             $fim = $dateEnd ? date('d/m/Y', strtotime($dateEnd)) : 'FIM DO MÊS';
-            $titulo .= ' - ' . $inicio . ' A ' . $fim;
+            $titulo .= ' - PERÍODO: ' . $inicio . ' A ' . $fim;
         }
 
         return $titulo;
+    }
+
+    private function withEmpresaNome(array $parsed, array $options): array
+    {
+        if (!empty($options['empresa_nome'])) {
+            $options['empresa_nome'] = $this->normalizeTitlePart((string)$options['empresa_nome']);
+            return $options;
+        }
+
+        $empresa = $parsed['empresa'] ?? [];
+        if (!is_array($empresa)) {
+            return $options;
+        }
+
+        foreach (['nome', 'razaoSocial', 'razao_social', 'razao', 'empregador'] as $key) {
+            $value = $this->normalizeTitlePart((string)($empresa[$key] ?? ''));
+            if ($value !== '') {
+                $options['empresa_nome'] = $value;
+                break;
+            }
+        }
+
+        return $options;
+    }
+
+    private function normalizeTitlePart(string $value): string
+    {
+        $value = preg_replace('/[\x00-\x1F\x7F]+/u', ' ', $value) ?? $value;
+        $value = preg_replace('/\s+/u', ' ', trim($value)) ?? trim($value);
+        if ($value === '') {
+            return '';
+        }
+
+        return function_exists('mb_strtoupper') ? mb_strtoupper($value, 'UTF-8') : strtoupper($value);
     }
 
     private function buildSheetXml(array $rows, int $mes, int $ano, array $columns, array $options = []): string

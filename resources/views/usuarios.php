@@ -106,11 +106,11 @@ $renderUsuarioRows = static function (array $usuarios, bool $grupoAtivo): void {
         </div>
 
         <div class="filter-control filter-control--selection">
-            <select id="employeeSelectionMode" class="form-select form-select-sm bg-dark text-light border-secondary" title="Selecionar colaboradores" onchange="afdUsuariosSelectionChange(this.value)">
-                <option value="manter">Colaboradores marcados</option>
-                <option value="ativos">Selecionar ativos do filtro</option>
-                <option value="todos">Selecionar todos do filtro</option>
-                <option value="limpar">Limpar seleção</option>
+            <select id="employeeSelectionFilter" class="form-select form-select-sm bg-dark text-light border-secondary" title="Filtrar colaboradores">
+                <option value="todos">Colaboradores (todos)</option>
+                <option value="marcados">Colaboradores marcados</option>
+                <option value="nao_marcados">Colaboradores não marcados</option>
+                <option value="exportaveis">Ativos/exportáveis</option>
             </select>
         </div>
 
@@ -124,6 +124,12 @@ $renderUsuarioRows = static function (array $usuarios, bool $grupoAtivo): void {
         <span><strong id="selectedUsersCount">0</strong> selecionado(s)</span>
         <span><strong id="visibleUsersCount">0</strong> visível(eis)</span>
         <span id="semRegistroAutoHint" class="text-warning d-none">Funcionário sem registro selecionado: será exportado zerado com observação.</span>
+
+        <div class="selection-actions-inline" aria-label="Ações de seleção dos colaboradores">
+            <button type="button" class="btn btn-outline-light btn-sm" data-export-users="ativos" onclick="afdUsuariosSetExportUsers('ativos')">Ativos do filtro</button>
+            <button type="button" class="btn btn-outline-light btn-sm" data-export-users="todos" onclick="afdUsuariosSetExportUsers('todos')">Todos do filtro</button>
+            <button type="button" class="btn btn-outline-light btn-sm" data-export-users="limpar" onclick="afdUsuariosSetExportUsers('limpar')">Limpar seleção</button>
+        </div>
     </div>
 
     <div class="collapse" id="advancedExportOptions">
@@ -144,15 +150,6 @@ $renderUsuarioRows = static function (array $usuarios, bool $grupoAtivo): void {
                 <div class="col-12 col-md-3">
                     <label class="form-label mb-1">Data final <small class="text-secondary">opcional</small></label>
                     <input id="exportDataFim" type="date" name="data_fim" class="form-control form-control-sm bg-dark text-light border-secondary">
-                </div>
-
-                <div class="col-12 col-md-6">
-                    <label class="form-label mb-1">Ações de seleção</label>
-                    <div class="d-flex flex-wrap gap-2">
-                        <button type="button" class="btn btn-outline-light btn-sm" data-export-users="ativos" onclick="afdUsuariosSetExportUsers('ativos')">Ativos do filtro</button>
-                        <button type="button" class="btn btn-outline-light btn-sm" data-export-users="todos" onclick="afdUsuariosSetExportUsers('todos')">Todos do filtro</button>
-                        <button type="button" class="btn btn-outline-light btn-sm" data-export-users="limpar" onclick="afdUsuariosSetExportUsers('limpar')">Limpar seleção</button>
-                    </div>
                 </div>
             </div>
 
@@ -412,11 +409,16 @@ $renderUsuarioRows = static function (array $usuarios, bool $grupoAtivo): void {
     function rowMatchesFilter(row) {
         var termEl = byId('employeeSearch');
         var typeEl = byId('employeeStatusFilter');
+        var selectionEl = byId('employeeSelectionFilter');
         var term = normalizeText(termEl ? termEl.value : '');
         var statusFilter = typeEl ? typeEl.value : 'todos';
+        var selectionFilter = selectionEl ? selectionEl.value : 'todos';
         var searchable = normalizeText((row.getAttribute('data-name') || '') + ' ' + (row.getAttribute('data-pis') || ''));
-        var status = row.getAttribute('data-period-status') || (getCheckbox(row) ? getCheckbox(row).getAttribute('data-status') : '');
+        var checkbox = getCheckbox(row);
+        var status = row.getAttribute('data-period-status') || (checkbox ? checkbox.getAttribute('data-status') : '');
         var isActive = row.getAttribute('data-active') === '1';
+        var isChecked = !!(checkbox && checkbox.checked && !checkbox.disabled);
+        var isExportable = !!(checkbox && !checkbox.disabled && isActive);
 
         if (term !== '' && searchable.indexOf(term) === -1) return false;
         if (statusFilter === 'com_registro' && status !== 'com_registro') return false;
@@ -424,6 +426,9 @@ $renderUsuarioRows = static function (array $usuarios, bool $grupoAtivo): void {
         if (statusFilter === 'fora_periodo' && ['incluido_apos', 'excluido_antes'].indexOf(status) === -1) return false;
         if (statusFilter === 'ativos' && !isActive) return false;
         if (statusFilter === 'excluidos' && isActive) return false;
+        if (selectionFilter === 'marcados' && !isChecked) return false;
+        if (selectionFilter === 'nao_marcados' && isChecked) return false;
+        if (selectionFilter === 'exportaveis' && !isExportable) return false;
 
         return true;
     }
@@ -475,7 +480,7 @@ $renderUsuarioRows = static function (array $usuarios, bool $grupoAtivo): void {
     function clearEmployeeFilter() {
         if (byId('employeeSearch')) byId('employeeSearch').value = '';
         if (byId('employeeStatusFilter')) byId('employeeStatusFilter').value = 'todos';
-        if (byId('employeeSelectionMode')) byId('employeeSelectionMode').value = 'manter';
+        if (byId('employeeSelectionFilter')) byId('employeeSelectionFilter').value = 'todos';
         getRows().forEach(function (row) { setDisplay(row, true); });
         updatePeriodStatus();
     }
@@ -492,7 +497,7 @@ $renderUsuarioRows = static function (array $usuarios, bool $grupoAtivo): void {
         mode = mode || 'ativos';
         if (mode === 'limpar') {
             all('.export-pis').forEach(function (item) { item.checked = false; });
-            if (byId('employeeSelectionMode')) byId('employeeSelectionMode').value = 'manter';
+            if (byId('employeeSelectionFilter')) byId('employeeSelectionFilter').value = 'todos';
             updateSelectedUsersCount();
             updateSemRegistroHint();
             return;
@@ -539,31 +544,24 @@ $renderUsuarioRows = static function (array $usuarios, bool $grupoAtivo): void {
         all('.export-column').forEach(function (item) { item.checked = !!checked; });
     }
 
-    function selectionChange(value) {
-        if (value && value !== 'manter') {
-            setExportUsers(value);
-        }
-    }
-
     window.afdUsuariosApplyFilter = function () { applyEmployeeFilter(true); };
     window.afdUsuariosClearFilter = clearEmployeeFilter;
     window.afdUsuariosToggleOptions = toggleOptions;
     window.afdUsuariosSetExportUsers = setExportUsers;
-    window.afdUsuariosSelectionChange = selectionChange;
     window.setExportColumns = setExportColumns;
 
     ready(function () {
         var applyBtn = byId('applyEmployeeFilter');
         var clearBtn = byId('clearEmployeeFilter');
         var toggleBtn = byId('toggleAdvancedExportOptions');
-        var selection = byId('employeeSelectionMode');
+        var selectionFilter = byId('employeeSelectionFilter');
         var search = byId('employeeSearch');
         var form = byId('exportForm');
 
         if (applyBtn) applyBtn.addEventListener('click', function () { applyEmployeeFilter(true); });
         if (clearBtn) clearBtn.addEventListener('click', clearEmployeeFilter);
         if (toggleBtn) toggleBtn.addEventListener('click', toggleOptions);
-        if (selection) selection.addEventListener('change', function () { selectionChange(selection.value); });
+        if (selectionFilter) selectionFilter.addEventListener('change', function () { applyEmployeeFilter(false); });
 
         all('[data-export-users]').forEach(function (button) {
             button.addEventListener('click', function () {
@@ -600,10 +598,6 @@ $renderUsuarioRows = static function (array $usuarios, bool $grupoAtivo): void {
         if (form) {
             form.addEventListener('submit', function (event) {
                 updatePeriodStatus();
-                var mode = selection ? selection.value : 'manter';
-                if (mode === 'todos' || mode === 'ativos') {
-                    setExportUsers(mode);
-                }
                 var selected = all('.export-pis:checked:not(:disabled)');
                 if (selected.length === 0) {
                     event.preventDefault();

@@ -451,6 +451,21 @@ body {
     gap: 4px;
 }
 
+.selection-actions-inline {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+    margin-left: auto;
+}
+
+.selection-actions-inline .btn {
+    min-height: 28px;
+    padding: 3px 8px;
+    font-size: .78rem;
+    white-space: nowrap;
+}
+
 #advancedExportOptions.collapse:not(.show) {
     display: none !important;
 }
@@ -474,6 +489,15 @@ body {
 }
 
 @media (max-width: 768px) {
+    .selection-actions-inline {
+        width: 100%;
+        margin-left: 0;
+    }
+
+    .selection-actions-inline .btn {
+        flex: 1 1 auto;
+    }
+
     .afd-filter-strip {
         align-items: stretch;
     }
