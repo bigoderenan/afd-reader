@@ -156,7 +156,7 @@ class UsuariosController extends Controller
         $datas = [];
         foreach ($service->forPis($pis) as $data => $ajuste) {
             $batidas = is_array($ajuste) ? ($ajuste['batidas'] ?? []) : [];
-            if (preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)$data) && is_array($batidas) && count($batidas) > 0) {
+            if (preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)$data) && is_array($batidas) && $service->hasEffectiveBatidas($batidas)) {
                 $datas[] = (string)$data;
             }
         }

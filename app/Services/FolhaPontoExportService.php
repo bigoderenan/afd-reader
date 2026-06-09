@@ -243,10 +243,11 @@ class FolhaPontoExportService
             }
         }
 
-        foreach ((new MarcacaoManualService())->forPis($pis) as $data => $ajuste) {
+        $manualService = new MarcacaoManualService();
+        foreach ($manualService->forPis($pis) as $data => $ajuste) {
             $batidas = is_array($ajuste) ? ($ajuste['batidas'] ?? []) : [];
             $data = (string)$data;
-            if ($this->isIsoDate($data) && $data >= $start && $data <= $end && is_array($batidas) && count($batidas) > 0) {
+            if ($this->isIsoDate($data) && $data >= $start && $data <= $end && is_array($batidas) && $manualService->hasEffectiveBatidas($batidas)) {
                 return true;
             }
         }

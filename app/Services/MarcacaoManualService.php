@@ -9,6 +9,9 @@ namespace App\Services;
  */
 class MarcacaoManualService
 {
+    private const SLOT_COUNT = 4;
+    private const PLACEHOLDER = '00:00';
+
     private string $file;
 
     public function __construct(?string $file = null)
@@ -60,7 +63,7 @@ class MarcacaoManualService
         $comentario = $this->normalizeComentario($comentario);
         $all = $this->all();
 
-        if ($batidas === []) {
+        if (!$this->hasEffectiveBatidas($batidas)) {
             unset($all[$pis][$data]);
             if (empty($all[$pis])) {
                 unset($all[$pis]);
@@ -87,26 +90,45 @@ class MarcacaoManualService
         $this->saveDay($pis, $data, []);
     }
 
+    /**
+     * Normaliza as marcações manuais em quatro posições fixas:
+     * Entrada 1, Saída 1, Entrada 2 e Saída 2.
+     *
+     * O valor 00:00 é tratado como espaço reservado e não entra nos cálculos.
+     * A ordem informada pelo usuário é preservada para permitir corrigir apenas
+     * um horário sem deslocar as demais posições.
+     */
     public function normalizeBatidas(array $batidas): array
     {
-        $validas = [];
-        foreach ($batidas as $hora) {
-            $hora = trim((string)$hora);
+        $slots = [];
+        for ($i = 0; $i < self::SLOT_COUNT; $i++) {
+            $hora = trim((string)($batidas[$i] ?? ''));
+
             if ($hora === '') {
+                $slots[] = self::PLACEHOLDER;
                 continue;
             }
 
             if (!preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d$/', $hora)) {
+                $slots[] = self::PLACEHOLDER;
                 continue;
             }
 
-            $validas[] = $hora;
+            $slots[] = $hora;
         }
 
-        $validas = array_values(array_unique($validas));
-        sort($validas, SORT_STRING);
+        return $slots;
+    }
 
-        return array_slice($validas, 0, 6);
+    public function hasEffectiveBatidas(array $batidas): bool
+    {
+        foreach ($batidas as $hora) {
+            if ($this->isEffectiveHora((string)$hora)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function normalizeDay(array $day): array
@@ -116,6 +138,11 @@ class MarcacaoManualService
             'comentario' => $this->normalizeComentario((string)($day['comentario'] ?? '')),
             'updated_at' => (string)($day['updated_at'] ?? ''),
         ];
+    }
+
+    private function isEffectiveHora(string $hora): bool
+    {
+        return preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d$/', $hora) === 1 && $hora !== self::PLACEHOLDER;
     }
 
     private function normalizeComentario(string $comentario): string

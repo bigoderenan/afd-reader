@@ -31,10 +31,14 @@ if ($editarDia) {
     }
 }
 $editarBatidas = $ajusteManual['batidas'] ?? ($editarDiaRow['batidas_raw'] ?? []);
-$editarBatidas = is_array($editarBatidas) ? array_values(array_slice($editarBatidas, 0, 6)) : [];
-while (count($editarBatidas) < 6) {
-    $editarBatidas[] = '';
+$editarBatidas = is_array($editarBatidas) ? array_values(array_slice($editarBatidas, 0, 4)) : [];
+while (count($editarBatidas) < 4) {
+    $editarBatidas[] = '00:00';
 }
+$editarBatidas = array_map(static function ($hora) {
+    $hora = trim((string)$hora);
+    return preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d$/', $hora) ? $hora : '00:00';
+}, $editarBatidas);
 $editarComentario = $ajusteManual['comentario'] ?? '';
 ?>
 
@@ -113,7 +117,7 @@ $editarComentario = $ajusteManual['comentario'] ?? '';
     </div>
     <div class="card-body">
         <p class="text-secondary mb-3">
-            Este ajuste substitui as batidas do AFD somente neste dia. Deixe todos os horários vazios para remover o ajuste manual.
+            Este ajuste substitui as batidas do AFD somente neste dia. São quatro posições fixas: Entrada 1, Saída 1, Entrada 2 e Saída 2. Use 00:00 para indicar posição sem marcação; esse valor não entra no cálculo.
         </p>
         <form method="post" action="index.php?page=salvar_marcacao_manual" class="row g-3 align-items-end">
             <input type="hidden" name="pis" value="<?php echo htmlspecialchars($pis); ?>">
@@ -121,9 +125,9 @@ $editarComentario = $ajusteManual['comentario'] ?? '';
             <input type="hidden" name="ano" value="<?php echo $ano; ?>">
             <input type="hidden" name="data" value="<?php echo htmlspecialchars($editarDia); ?>">
 
-            <?php $labelsBatidas = ['Entrada 1', 'Saída 1', 'Entrada 2', 'Saída 2', 'Entrada 3', 'Saída 3']; ?>
+            <?php $labelsBatidas = ['Entrada 1', 'Saída 1', 'Entrada 2', 'Saída 2']; ?>
             <?php foreach ($labelsBatidas as $idx => $labelBatida): ?>
-                <div class="col-6 col-md-2">
+                <div class="col-6 col-md-3">
                     <label class="form-label"><?php echo $labelBatida; ?></label>
                     <input type="time" name="batidas[]" class="form-control bg-dark text-light border-secondary" value="<?php echo htmlspecialchars((string)($editarBatidas[$idx] ?? '')); ?>">
                 </div>
@@ -162,8 +166,6 @@ $editarComentario = $ajusteManual['comentario'] ?? '';
                 <th>Saída</th>
                 <th>Entrada</th>
                 <th>Saída</th>
-                <th>Entrada</th>
-                <th>Saída</th>
                 <th class="tempo-col">Tempo</th>
                 <th>Esperado</th>
                 <th>Comentário</th>
@@ -181,8 +183,6 @@ $editarComentario = $ajusteManual['comentario'] ?? '';
                     <td><?php echo htmlspecialchars($row['saida1']); ?></td>
                     <td><?php echo htmlspecialchars($row['entrada2']); ?></td>
                     <td><?php echo htmlspecialchars($row['saida2']); ?></td>
-                    <td><?php echo htmlspecialchars($row['entrada3']); ?></td>
-                    <td><?php echo htmlspecialchars($row['saida3']); ?></td>
                     <td class="tempo-col"><?php echo htmlspecialchars($row['tempo']); ?></td>
                     <td><?php echo htmlspecialchars($row['esperado']); ?></td>
                     <td><?php echo htmlspecialchars($row['comentario']); ?></td>
@@ -194,7 +194,7 @@ $editarComentario = $ajusteManual['comentario'] ?? '';
         </tbody>
         <tfoot>
             <tr class="table-info text-dark fw-bold">
-                <td colspan="8" class="text-end">Totalizador:</td>
+                <td colspan="6" class="text-end">Totalizador:</td>
                 <td><?php echo htmlspecialchars($espelho['totais']['trabalhado']); ?></td>
                 <td></td>
                 <td></td>
@@ -206,6 +206,6 @@ $editarComentario = $ajusteManual['comentario'] ?? '';
     </table>
 </div>
 
-<p class="fw-bold">(*) Asterisco indica marcações ajustadas manualmente.</p>
+<p class="fw-bold">(*) Asterisco indica marcações ajustadas manualmente. O valor 00:00 é apenas posição reservada e não entra no cálculo.</p>
 <p><?php echo (int)($espelho['invalidadas'] ?? 0); ?> marcação(ões) incompleta(s) ou inválida(s).</p>
 <p>Nenhuma justificativa registrada para o PIS/CPF <?php echo htmlspecialchars($pis); ?>.</p>
