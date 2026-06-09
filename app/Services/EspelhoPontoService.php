@@ -17,6 +17,19 @@ class EspelhoPontoService
 
         $marcacoes = $usuario['marcacoes'] ?? [];
         $porDia = [];
+        $manualService = new MarcacaoManualService();
+        $ajustesManuais = $manualService->forPis($pis);
+        $ajustesManuaisMes = [];
+
+        foreach ($ajustesManuais as $dataAjuste => $_ajuste) {
+            $dataAjuste = (string)$dataAjuste;
+            if ($this->sameMonth($dataAjuste, $mes, $ano)) {
+                $ajuste = $manualService->getDay($pis, $dataAjuste);
+                if ($ajuste !== null) {
+                    $ajustesManuaisMes[$dataAjuste] = $ajuste;
+                }
+            }
+        }
 
         foreach ($marcacoes as $m) {
             $data = (string)($m['data'] ?? '');
@@ -64,13 +77,30 @@ class EspelhoPontoService
                 : 0;
 
             $items = $porDia[$data] ?? [];
+            $manual = isset($ajustesManuaisMes[$data]);
 
-            $batidas = array_map(static fn ($m) => (string)($m['hora'] ?? ''), $items);
+            if ($manual) {
+                $batidas = $ajustesManuaisMes[$data]['batidas'] ?? [];
+                $comentarioManual = (string)($ajustesManuaisMes[$data]['comentario'] ?? '');
+            } else {
+                $batidas = array_map(static fn ($m) => (string)($m['hora'] ?? ''), $items);
+                $comentarioManual = '';
+            }
 
             $pares = $this->montarPares($data, $batidas);
 
             $trabalhado = $pares['minutos'];
-            $comentario = $pares['comentario'];
+            $comentarios = [];
+            if ($manual) {
+                $comentarios[] = $comentarioManual !== '' ? $comentarioManual : 'Ajuste manual';
+            }
+            if ((string)$pares['comentario'] !== '') {
+                $comentarios[] = (string)$pares['comentario'];
+            }
+            $comentario = implode(' | ', array_unique($comentarios));
+            $batidasDisplay = $manual
+                ? array_map(static fn ($hora) => $hora . '*', $batidas)
+                : $batidas;
 
             if ($pares['incompleto']) {
                 $invalidadas++;
@@ -101,13 +131,15 @@ class EspelhoPontoService
                 'data_iso' => $data,
                 'data' => date('d/m/Y', strtotime($data)),
                 'dia' => $this->diaSemana($dow),
-                'batidas' => $batidas,
-                'entrada1' => $batidas[0] ?? '',
-                'saida1' => $batidas[1] ?? '',
-                'entrada2' => $batidas[2] ?? '',
-                'saida2' => $batidas[3] ?? '',
-                'entrada3' => $batidas[4] ?? '',
-                'saida3' => $batidas[5] ?? '',
+                'batidas' => $batidasDisplay,
+                'batidas_raw' => $batidas,
+                'manual' => $manual,
+                'entrada1' => $batidasDisplay[0] ?? '',
+                'saida1' => $batidasDisplay[1] ?? '',
+                'entrada2' => $batidasDisplay[2] ?? '',
+                'saida2' => $batidasDisplay[3] ?? '',
+                'entrada3' => $batidasDisplay[4] ?? '',
+                'saida3' => $batidasDisplay[5] ?? '',
                 'tempo' => $trabalhado > 0 ? JornadaService::minutesToHour($trabalhado) : '',
                 'esperado' => $esperado > 0 ? JornadaService::minutesToHour($esperado) : '--',
                 'comentario' => $comentario,
@@ -188,7 +220,7 @@ class EspelhoPontoService
         return [
             'minutos' => $minutos,
             'incompleto' => $incompleto,
-            'comentario' => '',
+            'comentario' => $incompleto ? 'Marcação incompleta' : '',
         ];
     }
 

@@ -18,6 +18,24 @@ function navMonthUrl(string $pis, int $mes, int $ano, int $deltaMes = 0, int $de
     }
     return 'index.php?page=espelho&pis=' . urlencode($pis) . '&mes=' . (int)$date->format('m') . '&ano=' . (int)$date->format('Y');
 }
+
+$editarDia = $editarDia ?? null;
+$ajusteManual = is_array($ajusteManual ?? null) ? $ajusteManual : null;
+$editarDiaRow = null;
+if ($editarDia) {
+    foreach (($espelho['rows'] ?? []) as $linhaEspelho) {
+        if (($linhaEspelho['data_iso'] ?? '') === $editarDia) {
+            $editarDiaRow = $linhaEspelho;
+            break;
+        }
+    }
+}
+$editarBatidas = $ajusteManual['batidas'] ?? ($editarDiaRow['batidas_raw'] ?? []);
+$editarBatidas = is_array($editarBatidas) ? array_values(array_slice($editarBatidas, 0, 6)) : [];
+while (count($editarBatidas) < 6) {
+    $editarBatidas[] = '';
+}
+$editarComentario = $ajusteManual['comentario'] ?? '';
 ?>
 
 <?php if (!empty($message)): ?>
@@ -43,7 +61,7 @@ function navMonthUrl(string $pis, int $mes, int $ano, int $deltaMes = 0, int $de
     </form>
 
     <button class="btn btn-blue btn-sm ms-2" type="button" onclick="window.print()">Preparar para Impressão</button>
-    <a class="btn btn-secondary btn-sm" href="index.php?page=espelho&pis=<?php echo urlencode($pis); ?>&mes=<?php echo $mes; ?>&ano=<?php echo $ano; ?>&editar=1">Editar</a>
+    <a class="btn btn-secondary btn-sm" href="index.php?page=espelho&pis=<?php echo urlencode($pis); ?>&mes=<?php echo $mes; ?>&ano=<?php echo $ano; ?>&editar=1">Editar jornada</a>
     <a class="btn btn-secondary btn-sm" href="index.php?page=usuarios">Voltar</a>
 </div>
 
@@ -88,6 +106,44 @@ function navMonthUrl(string $pis, int $mes, int $ano, int $deltaMes = 0, int $de
 </div>
 <?php endif; ?>
 
+<?php if ($editarDia && $editarDiaRow): ?>
+<div class="card bg-dark text-light border-secondary mb-3 d-print-none" id="editar-dia">
+    <div class="card-header bg-primary text-white fw-bold">
+        Editar marcações de <?php echo htmlspecialchars($editarDiaRow['data']); ?> - <?php echo htmlspecialchars($nome); ?>
+    </div>
+    <div class="card-body">
+        <p class="text-secondary mb-3">
+            Este ajuste substitui as batidas do AFD somente neste dia. Deixe todos os horários vazios para remover o ajuste manual.
+        </p>
+        <form method="post" action="index.php?page=salvar_marcacao_manual" class="row g-3 align-items-end">
+            <input type="hidden" name="pis" value="<?php echo htmlspecialchars($pis); ?>">
+            <input type="hidden" name="mes" value="<?php echo $mes; ?>">
+            <input type="hidden" name="ano" value="<?php echo $ano; ?>">
+            <input type="hidden" name="data" value="<?php echo htmlspecialchars($editarDia); ?>">
+
+            <?php $labelsBatidas = ['Entrada 1', 'Saída 1', 'Entrada 2', 'Saída 2', 'Entrada 3', 'Saída 3']; ?>
+            <?php foreach ($labelsBatidas as $idx => $labelBatida): ?>
+                <div class="col-6 col-md-2">
+                    <label class="form-label"><?php echo $labelBatida; ?></label>
+                    <input type="time" name="batidas[]" class="form-control bg-dark text-light border-secondary" value="<?php echo htmlspecialchars((string)($editarBatidas[$idx] ?? '')); ?>">
+                </div>
+            <?php endforeach; ?>
+
+            <div class="col-12 col-md-8">
+                <label class="form-label">Observação do ajuste</label>
+                <input type="text" name="comentario" maxlength="180" class="form-control bg-dark text-light border-secondary" value="<?php echo htmlspecialchars((string)$editarComentario); ?>" placeholder="Ex.: Relógio sem comunicação; ajuste autorizado">
+            </div>
+
+            <div class="col-12 col-md-4 d-flex flex-wrap gap-2">
+                <button class="btn btn-green" type="submit">Salvar dia</button>
+                <button class="btn btn-outline-danger" type="submit" name="limpar_ajuste" value="1">Remover ajuste</button>
+                <a class="btn btn-outline-secondary" href="index.php?page=espelho&pis=<?php echo urlencode($pis); ?>&mes=<?php echo $mes; ?>&ano=<?php echo $ano; ?>#dia-<?php echo htmlspecialchars($editarDia); ?>">Cancelar</a>
+            </div>
+        </form>
+    </div>
+</div>
+<?php endif; ?>
+
 <div class="afd-section-title d-flex justify-content-between align-items-center">
     <div>
         <span class="badge bg-success me-2"><?php echo htmlspecialchars($nome); ?></span>
@@ -118,7 +174,7 @@ function navMonthUrl(string $pis, int $mes, int $ano, int $deltaMes = 0, int $de
         </thead>
         <tbody>
             <?php foreach ($espelho['rows'] as $row): ?>
-                <tr>
+                <tr id="dia-<?php echo htmlspecialchars((string)$row['data_iso']); ?>" class="<?php echo !empty($row['manual']) ? 'table-warning text-dark' : ''; ?>">
                     <td class="fw-bold"><?php echo htmlspecialchars($row['data']); ?></td>
                     <td><em><?php echo htmlspecialchars($row['dia']); ?></em></td>
                     <td><?php echo htmlspecialchars($row['entrada1']); ?></td>
@@ -132,7 +188,7 @@ function navMonthUrl(string $pis, int $mes, int $ano, int $deltaMes = 0, int $de
                     <td><?php echo htmlspecialchars($row['comentario']); ?></td>
                     <td class="text-red fw-bold"><?php echo htmlspecialchars($row['falta']); ?></td>
                     <td class="text-purple fw-bold"><?php echo htmlspecialchars($row['extra']); ?></td>
-                    <td class="d-print-none"><a class="text-purple text-decoration-none" href="index.php?page=espelho&pis=<?php echo urlencode($pis); ?>&mes=<?php echo $mes; ?>&ano=<?php echo $ano; ?>&editar=1">✎</a></td>
+                    <td class="d-print-none"><a class="btn btn-outline-light btn-sm" href="index.php?page=espelho&pis=<?php echo urlencode($pis); ?>&mes=<?php echo $mes; ?>&ano=<?php echo $ano; ?>&editar_dia=<?php echo urlencode((string)$row['data_iso']); ?>#editar-dia">Editar dia</a></td>
                 </tr>
             <?php endforeach; ?>
         </tbody>
@@ -150,6 +206,6 @@ function navMonthUrl(string $pis, int $mes, int $ano, int $deltaMes = 0, int $de
     </table>
 </div>
 
-<p class="fw-bold">(*) Asterisco indica marcações inseridas manualmente</p>
-<p>Nenhuma marcação invalidada.</p>
+<p class="fw-bold">(*) Asterisco indica marcações ajustadas manualmente.</p>
+<p><?php echo (int)($espelho['invalidadas'] ?? 0); ?> marcação(ões) incompleta(s) ou inválida(s).</p>
 <p>Nenhuma justificativa registrada para o PIS/CPF <?php echo htmlspecialchars($pis); ?>.</p>

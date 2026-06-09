@@ -70,6 +70,9 @@ switch ($page) {
     case 'salvar_jornada':
         (new EspelhoController())->salvarJornada();
         break;
+    case 'salvar_marcacao_manual':
+        (new EspelhoController())->salvarMarcacaoManual();
+        break;
     case 'cadastro':
         (new CadastroController())->index();
         break;

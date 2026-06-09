@@ -5,6 +5,7 @@ use App\Core\Controller;
 use App\Services\JornadaService;
 use App\Services\EspelhoPontoService;
 use App\Services\FolhaPontoExportService;
+use App\Services\MarcacaoManualService;
 
 /**
  * Class UsuariosController
@@ -33,6 +34,7 @@ class UsuariosController extends Controller
 
         $usuarios = $parsed['usuarios'] ?? [];
         $jornadaService = new JornadaService();
+        $manualService = new MarcacaoManualService();
         [$exportMes, $exportAno] = $this->periodoPadrao($usuarios, $parsed);
         $ativos = [];
         $excluidos = [];
@@ -44,35 +46,38 @@ class UsuariosController extends Controller
             }
 
             $marks = $user['marcacoes'] ?? [];
-            $numMarks = count($marks);
+            $manualDates = $this->manualMarkDates((string)$pis, $manualService);
+            $numMarks = count($marks) + count($manualDates);
             $firstMark = null;
             $lastMark = null;
 
-            if ($numMarks > 0) {
+            if (count($marks) > 0) {
                 usort($marks, static function ($a, $b) {
                     $da = $a['datetime'] ?? (($a['data'] ?? '') . ' ' . ($a['hora'] ?? ''));
                     $db = $b['datetime'] ?? (($b['data'] ?? '') . ' ' . ($b['hora'] ?? ''));
                     return strcmp($da, $db);
                 });
                 $firstMark = $marks[0];
-                $lastMark = $marks[$numMarks - 1];
+                $lastMark = $marks[count($marks) - 1];
             }
 
             $nome = trim((string)($user['nome'] ?? ''));
             $nome = preg_replace('/\s+/', ' ', $nome) ?: (string)$pis;
 
             $jornada = $jornadaService->get((string)$pis);
-            $markDates = $this->markDates($marks);
+            $markDates = $this->mergeDates($this->markDates($marks), $manualDates);
             $usuarioInicio = $this->usuarioStartDate($user);
             $usuarioFim = $this->usuarioEndDate($user);
-            $statusPeriodo = $this->statusPeriodo($user, $exportMes, $exportAno);
+            $statusPeriodo = $this->statusPeriodo($user, $exportMes, $exportAno, $manualDates);
+            $primeiraData = $markDates[0] ?? (string)($firstMark['data'] ?? '');
+            $ultimaData = $markDates ? $markDates[count($markDates) - 1] : (string)($lastMark['data'] ?? '');
 
             $row = [
                 'pis'       => (string)$pis,
                 'nome'      => $nome,
                 'marcacoes' => $numMarks,
-                'primeira'  => $firstMark ? $this->formatDateOnly($firstMark['data'] ?? '') : '-',
-                'ultima'    => $lastMark ? $this->formatDateOnly($lastMark['data'] ?? '') : '-',
+                'primeira'  => $primeiraData !== '' ? $this->formatDateOnly($primeiraData) : '-',
+                'ultima'    => $ultimaData !== '' ? $this->formatDateOnly($ultimaData) : '-',
                 'cargaHoraria' => JornadaService::minutesToHour((int)($jornada['semanal_minutos'] ?? 2640)) . (!empty($jornada['custom']) ? '' : '*'),
                 'markDates' => implode(',', $markDates),
                 'usuarioInicio' => $usuarioInicio ?? '',
@@ -145,6 +150,38 @@ class UsuariosController extends Controller
         return $datas;
     }
 
+
+    private function manualMarkDates(string $pis, MarcacaoManualService $service): array
+    {
+        $datas = [];
+        foreach ($service->forPis($pis) as $data => $ajuste) {
+            $batidas = is_array($ajuste) ? ($ajuste['batidas'] ?? []) : [];
+            if (preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)$data) && is_array($batidas) && count($batidas) > 0) {
+                $datas[] = (string)$data;
+            }
+        }
+
+        sort($datas);
+        return $datas;
+    }
+
+    private function mergeDates(array ...$dateGroups): array
+    {
+        $datas = [];
+        foreach ($dateGroups as $group) {
+            foreach ($group as $data) {
+                $data = (string)$data;
+                if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $data)) {
+                    $datas[$data] = true;
+                }
+            }
+        }
+
+        $datas = array_keys($datas);
+        sort($datas);
+        return $datas;
+    }
+
     private function usuarioStartDate(array $usuario): ?string
     {
         $datas = [];
@@ -191,7 +228,7 @@ class UsuariosController extends Controller
         return (($ultimo['operacao'] ?? '') === 'E' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $data)) ? $data : null;
     }
 
-    private function statusPeriodo(array $usuario, int $mes, int $ano): array
+    private function statusPeriodo(array $usuario, int $mes, int $ano, array $manualDates = []): array
     {
         $periodStart = sprintf('%04d-%02d-01', $ano, $mes);
         $periodEnd = date('Y-m-t', strtotime($periodStart));
@@ -208,6 +245,13 @@ class UsuariosController extends Controller
 
         foreach (($usuario['marcacoes'] ?? []) as $mark) {
             $data = (string)($mark['data'] ?? '');
+            if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $data) && $data >= $periodStart && $data <= $periodEnd) {
+                return ['codigo' => 'com_registro', 'label' => 'Com registro no período', 'class' => 'status-ok'];
+            }
+        }
+
+        foreach ($manualDates as $data) {
+            $data = (string)$data;
             if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $data) && $data >= $periodStart && $data <= $periodEnd) {
                 return ['codigo' => 'com_registro', 'label' => 'Com registro no período', 'class' => 'status-ok'];
             }

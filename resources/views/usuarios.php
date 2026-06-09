@@ -25,7 +25,7 @@ $exportColumns = $exportColumns ?? [
     'observacoes' => 'OBSERVAÇÕES',
 ];
 
-$renderUsuarioRows = static function (array $usuarios, bool $grupoAtivo): void {
+$renderUsuarioRows = static function (array $usuarios, bool $grupoAtivo) use ($mesAtual, $anoAtual): void {
     $i = 1;
     foreach ($usuarios as $u):
         $statusCodigo = (string)($u['statusCodigo'] ?? 'sem_registro');
@@ -54,14 +54,14 @@ $renderUsuarioRows = static function (array $usuarios, bool $grupoAtivo): void {
                        <?php echo $disabled ? 'disabled' : ''; ?>>
             </td>
             <td><?php echo $i++; ?>.</td>
-            <td><a class="text-blue text-decoration-none" href="index.php?page=espelho&pis=<?php echo urlencode($pis); ?>"><?php echo htmlspecialchars($nome); ?></a></td>
+            <td><a class="text-blue text-decoration-none js-espelho-link" data-pis="<?php echo htmlspecialchars($pis); ?>" href="index.php?page=espelho&pis=<?php echo urlencode($pis); ?>&mes=<?php echo $mesAtual; ?>&ano=<?php echo $anoAtual; ?>"><?php echo htmlspecialchars($nome); ?></a></td>
             <td><?php echo htmlspecialchars($pis); ?></td>
             <td><?php echo htmlspecialchars((string)($u['marcacoes'] ?? 0)); ?></td>
             <td><?php echo htmlspecialchars((string)($u['primeira'] ?? '-')); ?></td>
             <td><?php echo htmlspecialchars((string)($u['ultima'] ?? '-')); ?></td>
             <td><?php echo htmlspecialchars((string)($u['cargaHoraria'] ?? '')); ?></td>
             <td><span class="period-status <?php echo htmlspecialchars($statusClass); ?>"><?php echo htmlspecialchars($statusLabel); ?></span></td>
-            <td><a class="text-blue text-decoration-none" href="index.php?page=espelho&pis=<?php echo urlencode($pis); ?>">Espelho</a></td>
+            <td><a class="text-blue text-decoration-none js-espelho-link" data-pis="<?php echo htmlspecialchars($pis); ?>" href="index.php?page=espelho&pis=<?php echo urlencode($pis); ?>&mes=<?php echo $mesAtual; ?>&ano=<?php echo $anoAtual; ?>">Espelho</a></td>
             <td><a class="text-blue text-decoration-none" href="index.php?page=cadastro&pis=<?php echo urlencode($pis); ?>">Cadastro</a></td>
         </tr>
         <?php
@@ -114,10 +114,10 @@ $renderUsuarioRows = static function (array $usuarios, bool $grupoAtivo): void {
             </select>
         </div>
 
-        <button type="button" class="btn btn-outline-info btn-sm filter-action" id="applyEmployeeFilter" onclick="afdUsuariosApplyFilter()" title="Pesquisar com filtro">🔍 Pesquisar</button>
-        <button type="button" class="btn btn-outline-secondary btn-sm filter-action" id="clearEmployeeFilter" onclick="afdUsuariosClearFilter()" title="Limpar filtro">× Limpar</button>
-        <button type="button" class="btn btn-outline-light btn-sm filter-action" id="toggleAdvancedExportOptions" onclick="afdUsuariosToggleOptions()" aria-expanded="false" aria-controls="advancedExportOptions" title="Opções avançadas">⚙ Opções</button>
-        <button type="submit" class="btn btn-green btn-sm filter-action filter-action--export" title="Exportar dados">📤 Exportar</button>
+        <button type="button" class="btn btn-outline-info btn-sm filter-action" id="applyEmployeeFilter" onclick="afdUsuariosApplyFilter()" title="Pesquisar com filtro">Pesquisar</button>
+        <button type="button" class="btn btn-outline-secondary btn-sm filter-action" id="clearEmployeeFilter" onclick="afdUsuariosClearFilter()" title="Limpar filtro">Limpar</button>
+        <button type="button" class="btn btn-outline-light btn-sm filter-action" id="toggleAdvancedExportOptions" onclick="afdUsuariosToggleOptions()" aria-expanded="false" aria-controls="advancedExportOptions" title="Opções avançadas">Opções</button>
+        <button type="submit" class="btn btn-green btn-sm filter-action filter-action--export" title="Exportar dados">Exportar</button>
     </div>
 
     <div class="export-mini-summary mb-3">
@@ -544,6 +544,17 @@ $renderUsuarioRows = static function (array $usuarios, bool $grupoAtivo): void {
         all('.export-column').forEach(function (item) { item.checked = !!checked; });
     }
 
+    function updateEspelhoLinks() {
+        var month = (byId('exportMes') && byId('exportMes').value) || '';
+        var year = (byId('exportAno') && byId('exportAno').value) || '';
+        all('.js-espelho-link').forEach(function (link) {
+            var pis = link.getAttribute('data-pis') || '';
+            if (pis !== '' && month !== '' && year !== '') {
+                link.href = 'index.php?page=espelho&pis=' + encodeURIComponent(pis) + '&mes=' + encodeURIComponent(month) + '&ano=' + encodeURIComponent(year);
+            }
+        });
+    }
+
     window.afdUsuariosApplyFilter = function () { applyEmployeeFilter(true); };
     window.afdUsuariosClearFilter = clearEmployeeFilter;
     window.afdUsuariosToggleOptions = toggleOptions;
@@ -581,6 +592,7 @@ $renderUsuarioRows = static function (array $usuarios, bool $grupoAtivo): void {
 
         all('#exportMes, #exportAno, #exportDataInicio, #exportDataFim, input[name="sem_registro"]').forEach(function (item) {
             item.addEventListener('change', function () {
+                updateEspelhoLinks();
                 updatePeriodStatus();
                 applyEmployeeFilter(false);
             });
@@ -611,6 +623,7 @@ $renderUsuarioRows = static function (array $usuarios, bool $grupoAtivo): void {
             panel.style.display = 'none';
         }
 
+        updateEspelhoLinks();
         updatePeriodStatus();
         applyEmployeeFilter(false);
     });

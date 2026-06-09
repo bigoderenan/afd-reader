@@ -79,29 +79,25 @@ class FolhaPontoExportService
         $xml .= '<Styles>';
         $xml .= '<Style ss:ID="Default"><Alignment ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1"/><Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1"/><Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1"/></Borders><Font ss:FontName="Calibri" ss:Size="11"/></Style>';
         $xml .= '<Style ss:ID="Title"><Font ss:Bold="1" ss:Size="14"/><Alignment ss:Horizontal="Center" ss:Vertical="Center"/></Style>';
-        $xml .= '<Style ss:ID="Header"><Interior ss:Color="#375623" ss:Pattern="Solid"/><Font ss:Bold="1" ss:Color="#FFFFFF"/><Alignment ss:Horizontal="Center" ss:Vertical="Center" ss:WrapText="1"/></Style>';
-        $xml .= '<Style ss:ID="Name"><Font ss:Color="#0070C0"/></Style>';
-        $xml .= '<Style ss:ID="Obs"><Interior ss:Color="#D9EAD3" ss:Pattern="Solid"/><Font ss:Bold="1"/></Style>';
+        $xml .= '<Style ss:ID="Header"><Interior ss:Color="#111827" ss:Pattern="Solid"/><Font ss:Bold="1" ss:Color="#FFFFFF"/><Alignment ss:Horizontal="Center" ss:Vertical="Center" ss:WrapText="1"/></Style>';
+        $xml .= '<Style ss:ID="Name"><Font ss:Color="#111827"/></Style>';
+        $xml .= '<Style ss:ID="Obs"><Interior ss:Color="#F3F4F6" ss:Pattern="Solid"/><Font ss:Bold="1"/></Style>';
         $xml .= '</Styles>';
         $xml .= '<Worksheet ss:Name="CONTROLE DE PONTO"><Table>';
-        $xml .= '<Column ss:Width="18"/><Column ss:Width="36"/>';
         foreach ($columns as $key) {
             $xml .= '<Column ss:Width="' . ($key === 'nome' || $key === 'observacoes' ? '240' : '95') . '"/>';
         }
         $xml .= '<Row/>';
         $mergeAcross = max(0, count($columns) - 1);
-        $xml .= '<Row><Cell/><Cell/><Cell ss:MergeAcross="' . $mergeAcross . '" ss:StyleID="Title"><Data ss:Type="String">' . $this->xml($titulo) . '</Data></Cell></Row>';
-        $xml .= '<Row><Cell/><Cell/>';
+        $xml .= '<Row><Cell ss:MergeAcross="' . $mergeAcross . '" ss:StyleID="Title"><Data ss:Type="String">' . $this->xml($titulo) . '</Data></Cell></Row>';
+        $xml .= '<Row>';
         foreach ($columns as $key) {
             $xml .= '<Cell ss:StyleID="Header"><Data ss:Type="String">' . $this->xml(self::COLUMN_MAP[$key]) . '</Data></Cell>';
         }
         $xml .= '</Row>';
 
-        $n = 1;
         foreach ($rows as $row) {
             $xml .= '<Row>';
-            $xml .= '<Cell/>';
-            $xml .= '<Cell><Data ss:Type="Number">' . $n . '</Data></Cell>';
             foreach ($columns as $key) {
                 $value = $row[$key] ?? '';
                 $style = $key === 'nome' ? ' ss:StyleID="Name"' : '';
@@ -109,10 +105,9 @@ class FolhaPontoExportService
                 $xml .= '<Cell' . $style . '><Data ss:Type="' . $type . '">' . $this->xml((string)$value) . '</Data></Cell>';
             }
             $xml .= '</Row>';
-            $n++;
         }
 
-        $xml .= '<Row/><Row><Cell/><Cell/><Cell ss:MergeAcross="' . $mergeAcross . '" ss:StyleID="Obs"><Data ss:Type="String">OBSERVAÇÃO : PLANILHA GERADA PELO LEITOR DE AFD. CONFERIR COLUNAS MANUAIS ANTES DO FECHAMENTO.</Data></Cell></Row>';
+        $xml .= '<Row/><Row><Cell ss:MergeAcross="' . $mergeAcross . '" ss:StyleID="Obs"><Data ss:Type="String">OBSERVAÇÃO : PLANILHA GERADA PELO LEITOR DE AFD. CONFERIR COLUNAS MANUAIS ANTES DO FECHAMENTO.</Data></Cell></Row>';
         $xml .= '</Table><WorksheetOptions xmlns="urn:schemas-microsoft-com:office:excel"><FreezePanes/><FrozenNoSplit/><SplitHorizontal>3</SplitHorizontal><TopRowBottomPane>3</TopRowBottomPane></WorksheetOptions></Worksheet></Workbook>';
 
         $this->ensureWritableOutput($outputPath);
@@ -182,7 +177,7 @@ class FolhaPontoExportService
             }
 
             $nome = preg_replace('/\s+/', ' ', trim((string)($usuario['nome'] ?? $pis))) ?: $pis;
-            $hasMarksInPeriod = $this->usuarioHasMarksInRange($usuario, $effectiveStart, $effectiveEnd);
+            $hasMarksInPeriod = $this->usuarioHasMarksInRange($pis, $usuario, $effectiveStart, $effectiveEnd);
 
             if (!$hasMarksInPeriod) {
                 if ($semRegistroMode === 'skip') {
@@ -239,11 +234,19 @@ class FolhaPontoExportService
         return in_array($mode, ['skip', 'zero', 'falta'], true) ? $mode : 'skip';
     }
 
-    private function usuarioHasMarksInRange(array $usuario, string $start, string $end): bool
+    private function usuarioHasMarksInRange(string $pis, array $usuario, string $start, string $end): bool
     {
         foreach (($usuario['marcacoes'] ?? []) as $m) {
             $data = (string)($m['data'] ?? '');
             if ($this->isIsoDate($data) && $data >= $start && $data <= $end) {
+                return true;
+            }
+        }
+
+        foreach ((new MarcacaoManualService())->forPis($pis) as $data => $ajuste) {
+            $batidas = is_array($ajuste) ? ($ajuste['batidas'] ?? []) : [];
+            $data = (string)$data;
+            if ($this->isIsoDate($data) && $data >= $start && $data <= $end && is_array($batidas) && count($batidas) > 0) {
                 return true;
             }
         }
@@ -455,6 +458,7 @@ class FolhaPontoExportService
             'datasMeioPeriodo' => [],
             'faltas' => 0,
             'datasFalta' => [],
+            'compensado' => 0,
         ];
 
         foreach ($rows as $row) {
@@ -489,6 +493,41 @@ class FolhaPontoExportService
             }
         }
 
+        return $this->compensarExtrasEFaltas($resumo);
+    }
+
+    private function compensarExtrasEFaltas(array $resumo): array
+    {
+        $totalExtra = (int)($resumo['extra50'] ?? 0) + (int)($resumo['extra100'] ?? 0);
+        $totalFalta = (int)($resumo['faltaHoras'] ?? 0);
+
+        if ($totalExtra <= 0 || $totalFalta <= 0) {
+            return $resumo;
+        }
+
+        $compensado = min($totalExtra, $totalFalta);
+        $restanteParaAbater = $compensado;
+
+        $abateExtra50 = min((int)$resumo['extra50'], $restanteParaAbater);
+        $resumo['extra50'] -= $abateExtra50;
+        $restanteParaAbater -= $abateExtra50;
+
+        if ($restanteParaAbater > 0) {
+            $abateExtra100 = min((int)$resumo['extra100'], $restanteParaAbater);
+            $resumo['extra100'] -= $abateExtra100;
+            $restanteParaAbater -= $abateExtra100;
+        }
+
+        $resumo['faltaHoras'] = max(0, $totalFalta - $compensado);
+        $resumo['compensado'] = ((int)($resumo['compensado'] ?? 0)) + $compensado;
+
+        if ($resumo['faltaHoras'] === 0) {
+            $resumo['meioPeriodo'] = 0;
+            $resumo['datasMeioPeriodo'] = [];
+            $resumo['faltas'] = 0;
+            $resumo['datasFalta'] = [];
+        }
+
         return $resumo;
     }
 
@@ -506,6 +545,9 @@ class FolhaPontoExportService
         }
         if ($resumo['extra100'] > 0) {
             $obs[] = 'H. EXTRA 100% ' . $this->minutesToSheetText($resumo['extra100']);
+        }
+        if (($resumo['compensado'] ?? 0) > 0) {
+            $obs[] = 'SALDO COMPENSADO ' . $this->minutesToSheetText((int)$resumo['compensado']);
         }
 
         return implode(' | ', $obs);
@@ -579,39 +621,34 @@ class FolhaPontoExportService
     private function buildSheetXml(array $rows, int $mes, int $ano, array $columns, array $options = []): string
     {
         $titulo = $this->sheetTitle($mes, $ano, $options);
-        $columnCount = 2 + count($columns);
+        $columnCount = count($columns);
         $lastColumn = $this->columnName($columnCount);
-        $mergeTitleRef = 'C2:' . $lastColumn . '2';
-        $mergeObsRef = 'C' . (count($rows) + 5) . ':' . $lastColumn . (count($rows) + 5);
+        $mergeTitleRef = 'A2:' . $lastColumn . '2';
+        $mergeObsRef = 'A' . (count($rows) + 5) . ':' . $lastColumn . (count($rows) + 5);
 
         $sheetData = [];
         $sheetData[] = $this->rowXml(1, []);
-        $titleValues = [null, null, $titulo];
-        $titleStyles = [null, null, 1];
-        $sheetData[] = $this->rowXml(2, $titleValues, $titleStyles);
-        $headerValues = array_merge([null, null], array_map(static fn ($key) => self::COLUMN_MAP[$key], $columns));
+        $sheetData[] = $this->rowXml(2, [$titulo], [1]);
+        $headerValues = array_map(static fn ($key) => self::COLUMN_MAP[$key], $columns);
         $sheetData[] = $this->rowXml(3, $headerValues, array_fill(0, $columnCount, 2));
 
         $r = 4;
-        $index = 1;
         foreach ($rows as $row) {
-            $values = [null, $index];
-            $styles = [0, 0];
+            $values = [];
+            $styles = [];
             foreach ($columns as $key) {
                 $values[] = $row[$key] ?? '';
                 $styles[] = $key === 'nome' ? 3 : 0;
             }
             $sheetData[] = $this->rowXml($r++, $values, $styles);
-            $index++;
         }
 
         $obsRow = $r + 1;
-        $sheetData[] = $this->rowXml($obsRow, [null, null, 'OBSERVAÇÃO : PLANILHA GERADA PELO LEITOR DE AFD. CONFERIR COLUNAS MANUAIS ANTES DO FECHAMENTO.'], [null, null, 4]);
+        $sheetData[] = $this->rowXml($obsRow, ['OBSERVAÇÃO : PLANILHA GERADA PELO LEITOR DE AFD. CONFERIR COLUNAS MANUAIS ANTES DO FECHAMENTO.'], [4]);
 
-        $colsXml = '<col min="1" max="1" width="3" customWidth="1"/>' .
-            '<col min="2" max="2" width="6" customWidth="1"/>';
+        $colsXml = '';
         foreach ($columns as $i => $key) {
-            $indexCol = $i + 3;
+            $indexCol = $i + 1;
             $width = ($key === 'nome' || $key === 'observacoes') ? 38 : 16;
             $colsXml .= '<col min="' . $indexCol . '" max="' . $indexCol . '" width="' . $width . '" customWidth="1"/>';
         }
@@ -696,8 +733,8 @@ class FolhaPontoExportService
     {
         return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
-<fonts count="5"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="14"/><name val="Calibri"/></font><font><b/><color rgb="FFFFFFFF"/><sz val="11"/><name val="Calibri"/></font><font><color rgb="FF0070C0"/><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts>
-<fills count="4"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF375623"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFD9EAD3"/><bgColor indexed="64"/></patternFill></fill></fills>
+<fonts count="5"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="14"/><name val="Calibri"/></font><font><b/><color rgb="FFFFFFFF"/><sz val="11"/><name val="Calibri"/></font><font><color rgb="FF111827"/><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts>
+<fills count="4"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF111827"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFF3F4F6"/><bgColor indexed="64"/></patternFill></fill></fills>
 <borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border><border><left style="thin"/><right style="thin"/><top style="thin"/><bottom style="thin"/><diagonal/></border></borders>
 <cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
 <cellXfs count="5"><xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf><xf numFmtId="0" fontId="2" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf><xf numFmtId="0" fontId="3" fillId="0" borderId="1" xfId="0" applyFont="1"/><xf numFmtId="0" fontId="4" fillId="3" borderId="1" xfId="0" applyFont="1" applyFill="1"/></cellXfs>

@@ -4,6 +4,7 @@ namespace App\Controllers;
 use App\Core\Controller;
 use App\Services\EspelhoPontoService;
 use App\Services\JornadaService;
+use App\Services\MarcacaoManualService;
 
 class EspelhoController extends Controller
 {
@@ -28,6 +29,10 @@ class EspelhoController extends Controller
         $jornadaService = new JornadaService();
         $jornada = $jornadaService->get($pis);
         $espelho = $service->gerar($parsed, $pis, $mes, $ano, $jornada);
+        $editarDia = $this->validDateOrNull((string)($_GET['editar_dia'] ?? ''));
+        if ($editarDia !== null && ((int)substr($editarDia, 5, 2) !== $mes || (int)substr($editarDia, 0, 4) !== $ano)) {
+            $editarDia = null;
+        }
 
         $this->render('espelho', [
             'pis' => $pis,
@@ -36,9 +41,53 @@ class EspelhoController extends Controller
             'jornada' => $jornada,
             'espelho' => $espelho,
             'editar' => isset($_GET['editar']),
+            'editarDia' => $editarDia,
+            'ajusteManual' => $editarDia ? (new MarcacaoManualService())->getDay($pis, $editarDia) : null,
             'message' => $_SESSION['jornada_message'] ?? null,
         ]);
         unset($_SESSION['jornada_message']);
+    }
+
+    public function salvarMarcacaoManual(): void
+    {
+        $parsed = $this->loadParsed();
+        $pis = trim((string)($_POST['pis'] ?? ''));
+        if ($pis === '' || !isset($parsed['usuarios'][$pis])) {
+            $_SESSION['upload_message'] = 'Funcionário não encontrado para alterar marcação.';
+            header('Location: index.php?page=usuarios');
+            exit;
+        }
+
+        $data = $this->validDateOrNull((string)($_POST['data'] ?? ''));
+        $mes = max(1, min(12, (int)($_POST['mes'] ?? date('m'))));
+        $ano = (int)($_POST['ano'] ?? date('Y'));
+        if ($ano < 2000 || $ano > 2100) {
+            $ano = (int)date('Y');
+        }
+
+        if ($data === null) {
+            $_SESSION['jornada_message'] = 'Data inválida para ajuste manual.';
+            header('Location: index.php?page=espelho&pis=' . urlencode($pis) . '&mes=' . $mes . '&ano=' . $ano);
+            exit;
+        }
+
+        $service = new MarcacaoManualService();
+        if (!empty($_POST['limpar_ajuste'])) {
+            $service->deleteDay($pis, $data);
+            $_SESSION['jornada_message'] = 'Ajuste manual removido. O dia voltou a usar as marcações do AFD.';
+        } else {
+            $batidas = $_POST['batidas'] ?? [];
+            if (!is_array($batidas)) {
+                $batidas = [];
+            }
+            $ajuste = $service->saveDay($pis, $data, $batidas, (string)($_POST['comentario'] ?? ''));
+            $_SESSION['jornada_message'] = $ajuste === null
+                ? 'Ajuste manual removido. O dia voltou a usar as marcações do AFD.'
+                : 'Marcações do dia atualizadas com sucesso.';
+        }
+
+        header('Location: index.php?page=espelho&pis=' . urlencode($pis) . '&mes=' . $mes . '&ano=' . $ano . '#dia-' . $data);
+        exit;
     }
 
     public function salvarJornada(): void
@@ -65,6 +114,17 @@ class EspelhoController extends Controller
         $ano = (int)($_POST['ano'] ?? date('Y'));
         header('Location: index.php?page=espelho&pis=' . urlencode($pis) . '&mes=' . $mes . '&ano=' . $ano);
         exit;
+    }
+
+    private function validDateOrNull(string $data): ?string
+    {
+        $data = trim($data);
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $data)) {
+            return null;
+        }
+
+        [$ano, $mes, $dia] = array_map('intval', explode('-', $data));
+        return checkdate($mes, $dia, $ano) ? $data : null;
     }
 
     private function loadParsed(): array
