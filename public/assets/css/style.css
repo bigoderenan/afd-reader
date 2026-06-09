@@ -394,10 +394,10 @@ body {
     }
 }
 
-/* Compact export filter v2 */
+/* Compact export filter v3 - sem sobreposição e sem dependência do Bootstrap JS */
 .afd-filter-strip {
-    display: grid;
-    grid-template-columns: minmax(190px, 1.35fr) minmax(145px, .85fr) minmax(118px, .62fr) minmax(160px, .9fr) minmax(190px, 1fr) auto auto auto auto;
+    display: flex;
+    flex-wrap: wrap;
     gap: 10px;
     align-items: center;
     padding: 10px 12px;
@@ -411,21 +411,29 @@ body {
 .afd-filter-strip .form-select,
 .afd-filter-strip .input-group-text,
 .afd-filter-strip .btn {
-    min-height: 32px;
+    min-height: 34px;
     font-size: .82rem;
 }
 
-.filter-control,
-.filter-action {
+.filter-control {
     min-width: 0;
 }
 
+.filter-control--employee { flex: 1 1 210px; }
+.filter-control--status { flex: 0 1 155px; }
+.filter-control--year { flex: 0 0 120px; }
+.filter-control--month { flex: 0 0 170px; }
+.filter-control--selection { flex: 0 1 220px; }
+
 .filter-action {
+    flex: 0 0 auto;
+    min-width: max-content;
     white-space: nowrap;
 }
 
 .filter-action--export {
     font-weight: 800;
+    margin-left: auto;
 }
 
 .export-mini-summary {
@@ -443,6 +451,14 @@ body {
     gap: 4px;
 }
 
+#advancedExportOptions.collapse:not(.show) {
+    display: none !important;
+}
+
+#advancedExportOptions.show {
+    display: block !important;
+}
+
 .export-advanced-panel {
     background: #171d20;
     border: 1px solid #303a40;
@@ -451,18 +467,24 @@ body {
     box-shadow: 0 10px 24px rgba(0, 0, 0, .16);
 }
 
-@media (max-width: 1500px) {
-    .afd-filter-strip {
-        grid-template-columns: repeat(4, minmax(0, 1fr));
+@media (max-width: 1100px) {
+    .filter-action--export {
+        margin-left: 0;
     }
 }
 
 @media (max-width: 768px) {
     .afd-filter-strip {
-        grid-template-columns: 1fr;
+        align-items: stretch;
     }
 
+    .filter-control,
     .filter-action {
+        flex: 1 1 100%;
         width: 100%;
+    }
+
+    .filter-action--export {
+        margin-left: 0;
     }
 }

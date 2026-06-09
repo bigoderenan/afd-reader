@@ -106,7 +106,7 @@ $renderUsuarioRows = static function (array $usuarios, bool $grupoAtivo): void {
         </div>
 
         <div class="filter-control filter-control--selection">
-            <select id="employeeSelectionMode" class="form-select form-select-sm bg-dark text-light border-secondary" title="Selecionar colaboradores">
+            <select id="employeeSelectionMode" class="form-select form-select-sm bg-dark text-light border-secondary" title="Selecionar colaboradores" onchange="afdUsuariosSelectionChange(this.value)">
                 <option value="manter">Colaboradores marcados</option>
                 <option value="ativos">Selecionar ativos do filtro</option>
                 <option value="todos">Selecionar todos do filtro</option>
@@ -114,9 +114,9 @@ $renderUsuarioRows = static function (array $usuarios, bool $grupoAtivo): void {
             </select>
         </div>
 
-        <button type="button" class="btn btn-outline-info btn-sm filter-action" id="applyEmployeeFilter">🔍 Pesquisar com filtro</button>
-        <button type="button" class="btn btn-outline-secondary btn-sm filter-action" id="clearEmployeeFilter">× Limpar filtro</button>
-        <button type="button" class="btn btn-outline-light btn-sm filter-action" data-bs-toggle="collapse" data-bs-target="#advancedExportOptions" aria-expanded="false" aria-controls="advancedExportOptions">⚙ Opções</button>
+        <button type="button" class="btn btn-outline-info btn-sm filter-action" id="applyEmployeeFilter" onclick="afdUsuariosApplyFilter()">🔍 Pesquisar com filtro</button>
+        <button type="button" class="btn btn-outline-secondary btn-sm filter-action" id="clearEmployeeFilter" onclick="afdUsuariosClearFilter()">× Limpar filtro</button>
+        <button type="button" class="btn btn-outline-light btn-sm filter-action" id="toggleAdvancedExportOptions" onclick="afdUsuariosToggleOptions()" aria-expanded="false" aria-controls="advancedExportOptions">⚙ Opções</button>
         <button type="submit" class="btn btn-green btn-sm filter-action filter-action--export">📤 Exportar dados</button>
     </div>
 
@@ -149,9 +149,9 @@ $renderUsuarioRows = static function (array $usuarios, bool $grupoAtivo): void {
                 <div class="col-12 col-md-6">
                     <label class="form-label mb-1">Ações de seleção</label>
                     <div class="d-flex flex-wrap gap-2">
-                        <button type="button" class="btn btn-outline-light btn-sm" data-export-users="ativos">Ativos do filtro</button>
-                        <button type="button" class="btn btn-outline-light btn-sm" data-export-users="todos">Todos do filtro</button>
-                        <button type="button" class="btn btn-outline-light btn-sm" data-export-users="limpar">Limpar seleção</button>
+                        <button type="button" class="btn btn-outline-light btn-sm" data-export-users="ativos" onclick="afdUsuariosSetExportUsers('ativos')">Ativos do filtro</button>
+                        <button type="button" class="btn btn-outline-light btn-sm" data-export-users="todos" onclick="afdUsuariosSetExportUsers('todos')">Todos do filtro</button>
+                        <button type="button" class="btn btn-outline-light btn-sm" data-export-users="limpar" onclick="afdUsuariosSetExportUsers('limpar')">Limpar seleção</button>
                     </div>
                 </div>
             </div>
@@ -274,363 +274,351 @@ $renderUsuarioRows = static function (array $usuarios, bool $grupoAtivo): void {
 <p class="fw-bold mt-2">*Horário Padrão. Clique em Espelho para alterar</p>
 
 <script>
-function pad2(value) {
-    return String(value).padStart(2, '0');
-}
+(function () {
+    'use strict';
 
-function normalizeText(value) {
-    return String(value || '')
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .toLowerCase()
-        .trim();
-}
-
-function monthBounds() {
-    const month = Number(document.getElementById('exportMes')?.value || new Date().getMonth() + 1);
-    const year = Number(document.getElementById('exportAno')?.value || new Date().getFullYear());
-    const startDefault = `${year}-${pad2(month)}-01`;
-    const lastDay = new Date(year, month, 0).getDate();
-    const endDefault = `${year}-${pad2(month)}-${pad2(lastDay)}`;
-    const customStart = document.getElementById('exportDataInicio')?.value || '';
-    const customEnd = document.getElementById('exportDataFim')?.value || '';
-
-    return {
-        start: customStart && customStart > startDefault ? customStart : startDefault,
-        end: customEnd && customEnd < endDefault ? customEnd : endDefault,
-    };
-}
-
-function semRegistroMode() {
-    return document.querySelector('input[name="sem_registro"]:checked')?.value || 'skip';
-}
-
-function setSemRegistroMode(mode, dispatchChange = false) {
-    const option = document.querySelector(`input[name="sem_registro"][value="${mode}"]`);
-    if (option) {
-        const changed = !option.checked;
-        option.checked = true;
-
-        if (dispatchChange && changed) {
-            option.dispatchEvent(new Event('change', { bubbles: true }));
+    function ready(fn) {
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', fn);
+        } else {
+            fn();
         }
     }
-    updateSemRegistroHint();
-}
 
-function autoAllowSemRegistroForRows(rows) {
-    const hasSemRegistro = rows.some((row) => {
-        const item = row.querySelector('.export-pis');
-        return item && item.dataset.status === 'sem_registro';
-    });
-
-    if (hasSemRegistro && semRegistroMode() === 'skip') {
-        setSemRegistroMode('zero');
+    function byId(id) {
+        return document.getElementById(id);
     }
 
-    return hasSemRegistro;
-}
-
-function updateSemRegistroHint() {
-    const hint = document.getElementById('semRegistroAutoHint');
-    if (!hint) {
-        return;
+    function all(selector, root) {
+        return Array.prototype.slice.call((root || document).querySelectorAll(selector));
     }
 
-    const hasSemRegistroSelecionado = Array.from(document.querySelectorAll('.export-pis:checked:not(:disabled)'))
-        .some((item) => item.dataset.status === 'sem_registro');
-
-    hint.classList.toggle('d-none', !hasSemRegistroSelecionado);
-}
-
-function hasMarkInPeriod(row, start, end) {
-    const marks = (row.dataset.marks || '').split(',').filter(Boolean);
-    return marks.some((date) => date >= start && date <= end);
-}
-
-function setRowStatus(row, code, label, cssClass, disabled) {
-    const badge = row.querySelector('.period-status');
-    const checkbox = row.querySelector('.export-pis');
-
-    row.classList.remove('status-ok', 'status-warning', 'status-muted');
-    row.classList.add(cssClass);
-    row.dataset.periodStatus = code;
-
-    if (badge) {
-        badge.textContent = label;
-        badge.classList.remove('status-ok', 'status-warning', 'status-muted');
-        badge.classList.add(cssClass);
+    function pad2(value) {
+        return String(value).padStart(2, '0');
     }
 
-    if (checkbox) {
-        checkbox.dataset.status = code;
-        checkbox.disabled = disabled;
-        if (disabled) {
-            checkbox.checked = false;
+    function normalizeText(value) {
+        value = String(value || '');
+        if (typeof value.normalize === 'function') {
+            value = value.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
         }
-    }
-}
-
-function updatePeriodStatus() {
-    const bounds = monthBounds();
-
-    document.querySelectorAll('.export-row').forEach((row) => {
-        const start = row.dataset.start || '';
-        const end = row.dataset.end || '';
-
-        if (start && start > bounds.end) {
-            setRowStatus(row, 'incluido_apos', 'Incluído após o período', 'status-muted', true);
-            return;
-        }
-
-        if (end && end < bounds.start) {
-            setRowStatus(row, 'excluido_antes', 'Excluído antes do período', 'status-muted', true);
-            return;
-        }
-
-        if (hasMarkInPeriod(row, bounds.start, bounds.end)) {
-            setRowStatus(row, 'com_registro', 'Com registro no período', 'status-ok', false);
-            return;
-        }
-
-        setRowStatus(row, 'sem_registro', 'Sem registro no período', 'status-warning', false);
-    });
-
-    updateVisibleUsersCount();
-    updateSelectedUsersCount();
-    updateSemRegistroHint();
-}
-
-function rowMatchesFilter(row) {
-    const term = normalizeText(document.getElementById('employeeSearch')?.value || '');
-    const statusFilter = document.getElementById('employeeStatusFilter')?.value || 'todos';
-    const searchable = normalizeText(`${row.dataset.name || ''} ${row.dataset.pis || ''}`);
-    const status = row.dataset.periodStatus || row.querySelector('.export-pis')?.dataset.status || '';
-    const isActive = row.dataset.active === '1';
-
-    if (term !== '' && !searchable.includes(term)) {
-        return false;
+        return value.toLowerCase().trim();
     }
 
-    if (statusFilter === 'com_registro' && status !== 'com_registro') {
-        return false;
+    function getCheckbox(row) {
+        return row ? row.querySelector('.export-pis') : null;
     }
 
-    if (statusFilter === 'sem_registro' && status !== 'sem_registro') {
-        return false;
+    function getRows() {
+        return all('.export-row');
     }
 
-    if (statusFilter === 'fora_periodo' && !['incluido_apos', 'excluido_antes'].includes(status)) {
-        return false;
-    }
-
-    if (statusFilter === 'ativos' && !isActive) {
-        return false;
-    }
-
-    if (statusFilter === 'excluidos' && isActive) {
-        return false;
-    }
-
-    return true;
-}
-
-function applyEmployeeFilter(uncheckHidden = true) {
-    updatePeriodStatus();
-
-    document.querySelectorAll('.export-row').forEach((row) => {
-        const visible = rowMatchesFilter(row);
+    function setDisplay(row, visible) {
+        if (!row) return;
         row.classList.toggle('d-none', !visible);
+        row.style.display = visible ? '' : 'none';
+    }
 
-        if (!visible && uncheckHidden) {
-            const checkbox = row.querySelector('.export-pis');
-            if (checkbox) {
+    function monthBounds() {
+        var month = Number((byId('exportMes') && byId('exportMes').value) || (new Date().getMonth() + 1));
+        var year = Number((byId('exportAno') && byId('exportAno').value) || new Date().getFullYear());
+        var startDefault = year + '-' + pad2(month) + '-01';
+        var lastDay = new Date(year, month, 0).getDate();
+        var endDefault = year + '-' + pad2(month) + '-' + pad2(lastDay);
+        var customStart = (byId('exportDataInicio') && byId('exportDataInicio').value) || '';
+        var customEnd = (byId('exportDataFim') && byId('exportDataFim').value) || '';
+
+        return {
+            start: customStart && customStart > startDefault ? customStart : startDefault,
+            end: customEnd && customEnd < endDefault ? customEnd : endDefault
+        };
+    }
+
+    function semRegistroMode() {
+        var checked = document.querySelector('input[name="sem_registro"]:checked');
+        return checked ? checked.value : 'skip';
+    }
+
+    function setSemRegistroMode(mode) {
+        var option = document.querySelector('input[name="sem_registro"][value="' + mode + '"]');
+        if (option) {
+            option.checked = true;
+        }
+        updateSemRegistroHint();
+    }
+
+    function hasMarkInPeriod(row, start, end) {
+        var marks = String(row.getAttribute('data-marks') || '').split(',').filter(Boolean);
+        for (var i = 0; i < marks.length; i++) {
+            if (marks[i] >= start && marks[i] <= end) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    function setRowStatus(row, code, label, cssClass, disabled) {
+        var badge = row.querySelector('.period-status');
+        var checkbox = getCheckbox(row);
+
+        row.classList.remove('status-ok', 'status-warning', 'status-muted');
+        row.classList.add(cssClass);
+        row.setAttribute('data-period-status', code);
+
+        if (badge) {
+            badge.textContent = label;
+            badge.classList.remove('status-ok', 'status-warning', 'status-muted');
+            badge.classList.add(cssClass);
+        }
+
+        if (checkbox) {
+            checkbox.setAttribute('data-status', code);
+            checkbox.disabled = !!disabled;
+            if (disabled) {
                 checkbox.checked = false;
             }
         }
-    });
-
-    const selection = document.getElementById('employeeSelectionMode')?.value || 'manter';
-    if (selection !== 'manter') {
-        setExportUsers(selection);
     }
 
-    updateVisibleUsersCount();
-    updateSelectedUsersCount();
-    updateSemRegistroHint();
-}
+    function updatePeriodStatus() {
+        var bounds = monthBounds();
+        getRows().forEach(function (row) {
+            var start = row.getAttribute('data-start') || '';
+            var end = row.getAttribute('data-end') || '';
 
-function clearEmployeeFilter() {
-    const search = document.getElementById('employeeSearch');
-    const status = document.getElementById('employeeStatusFilter');
-    const selection = document.getElementById('employeeSelectionMode');
+            if (start && start > bounds.end) {
+                setRowStatus(row, 'incluido_apos', 'Incluído após o período', 'status-muted', true);
+                return;
+            }
 
-    if (search) search.value = '';
-    if (status) status.value = 'todos';
-    if (selection) selection.value = 'manter';
+            if (end && end < bounds.start) {
+                setRowStatus(row, 'excluido_antes', 'Excluído antes do período', 'status-muted', true);
+                return;
+            }
 
-    document.querySelectorAll('.export-row').forEach((row) => {
-        row.classList.remove('d-none');
-    });
+            if (hasMarkInPeriod(row, bounds.start, bounds.end)) {
+                setRowStatus(row, 'com_registro', 'Com registro no período', 'status-ok', false);
+                return;
+            }
 
-    updatePeriodStatus();
-}
-
-function visibleRows() {
-    return Array.from(document.querySelectorAll('.export-row')).filter((row) => !row.classList.contains('d-none'));
-}
-
-function updateVisibleUsersCount() {
-    const counter = document.getElementById('visibleUsersCount');
-    if (counter) {
-        counter.textContent = visibleRows().length;
-    }
-}
-
-function updateSelectedUsersCount() {
-    const counter = document.getElementById('selectedUsersCount');
-    if (counter) {
-        counter.textContent = document.querySelectorAll('.export-pis:checked:not(:disabled)').length;
-    }
-}
-
-function ensureSemRegistroModeForSelection() {
-    const selectedSemRegistro = Array.from(document.querySelectorAll('.export-pis:checked:not(:disabled)'))
-        .filter((item) => item.dataset.status === 'sem_registro');
-
-    if (selectedSemRegistro.length > 0 && semRegistroMode() === 'skip') {
-        setSemRegistroMode('zero');
-    }
-}
-
-function rowsMatchingCurrentFilter() {
-    return Array.from(document.querySelectorAll('.export-row')).filter(rowMatchesFilter);
-}
-
-function selectableRowsForMode(mode) {
-    const rows = mode === 'todos' || mode === 'ativos'
-        ? rowsMatchingCurrentFilter()
-        : visibleRows();
-
-    return rows.filter((row) => {
-        const item = row.querySelector('.export-pis');
-        return item && !item.disabled;
-    });
-}
-
-function setExportUsers(mode) {
-    // Ao escolher Todos/Ativos, a própria ação já autoriza sem registro como zerado.
-    // Isso precisa acontecer ANTES do recálculo do período, porque algumas regras
-    // da tela dependem do modo atual de tratamento.
-    if ((mode === 'todos' || mode === 'ativos') && semRegistroMode() === 'skip') {
-        setSemRegistroMode('zero');
-    }
-
-    updatePeriodStatus();
-
-    if (mode === 'limpar') {
-        document.querySelectorAll('.export-pis').forEach((item) => {
-            item.checked = false;
+            setRowStatus(row, 'sem_registro', 'Sem registro no período', 'status-warning', false);
         });
+
+        updateVisibleUsersCount();
         updateSelectedUsersCount();
         updateSemRegistroHint();
-        return;
     }
 
-    let targetRows = selectableRowsForMode(mode);
+    function rowMatchesFilter(row) {
+        var termEl = byId('employeeSearch');
+        var typeEl = byId('employeeStatusFilter');
+        var term = normalizeText(termEl ? termEl.value : '');
+        var statusFilter = typeEl ? typeEl.value : 'todos';
+        var searchable = normalizeText((row.getAttribute('data-name') || '') + ' ' + (row.getAttribute('data-pis') || ''));
+        var status = row.getAttribute('data-period-status') || (getCheckbox(row) ? getCheckbox(row).getAttribute('data-status') : '');
+        var isActive = row.getAttribute('data-active') === '1';
 
-    // Automação principal:
-    // se a seleção atual incluir funcionário sem registro, a regra muda para
-    // "Exportar zerado com observação" antes de marcar os checkboxes.
-    autoAllowSemRegistroForRows(targetRows);
+        if (term !== '' && searchable.indexOf(term) === -1) return false;
+        if (statusFilter === 'com_registro' && status !== 'com_registro') return false;
+        if (statusFilter === 'sem_registro' && status !== 'sem_registro') return false;
+        if (statusFilter === 'fora_periodo' && ['incluido_apos', 'excluido_antes'].indexOf(status) === -1) return false;
+        if (statusFilter === 'ativos' && !isActive) return false;
+        if (statusFilter === 'excluidos' && isActive) return false;
 
-    // Recalcula depois da alteração automática para garantir que a tela e
-    // o backend usem a mesma regra no envio do formulário.
-    updatePeriodStatus();
-    targetRows = selectableRowsForMode(mode);
-    const targetSet = new Set(targetRows);
+        return true;
+    }
 
-    document.querySelectorAll('.export-row').forEach((row) => {
-        const item = row.querySelector('.export-pis');
-        if (!item || item.disabled) {
-            if (item) item.checked = false;
+    function visibleRows() {
+        return getRows().filter(function (row) {
+            return !row.classList.contains('d-none') && row.style.display !== 'none';
+        });
+    }
+
+    function rowsMatchingCurrentFilter() {
+        return getRows().filter(rowMatchesFilter);
+    }
+
+    function updateVisibleUsersCount() {
+        var counter = byId('visibleUsersCount');
+        if (counter) counter.textContent = String(visibleRows().length);
+    }
+
+    function updateSelectedUsersCount() {
+        var counter = byId('selectedUsersCount');
+        if (counter) counter.textContent = String(all('.export-pis:checked:not(:disabled)').length);
+    }
+
+    function updateSemRegistroHint() {
+        var hint = byId('semRegistroAutoHint');
+        if (!hint) return;
+        var hasSem = all('.export-pis:checked:not(:disabled)').some(function (item) {
+            return item.getAttribute('data-status') === 'sem_registro';
+        });
+        hint.classList.toggle('d-none', !hasSem);
+    }
+
+    function applyEmployeeFilter(uncheckHidden) {
+        updatePeriodStatus();
+        getRows().forEach(function (row) {
+            var visible = rowMatchesFilter(row);
+            var checkbox = getCheckbox(row);
+            setDisplay(row, visible);
+            if (!visible && uncheckHidden !== false && checkbox) {
+                checkbox.checked = false;
+            }
+        });
+        updateVisibleUsersCount();
+        updateSelectedUsersCount();
+        updateSemRegistroHint();
+    }
+
+    function clearEmployeeFilter() {
+        if (byId('employeeSearch')) byId('employeeSearch').value = '';
+        if (byId('employeeStatusFilter')) byId('employeeStatusFilter').value = 'todos';
+        if (byId('employeeSelectionMode')) byId('employeeSelectionMode').value = 'manter';
+        getRows().forEach(function (row) { setDisplay(row, true); });
+        updatePeriodStatus();
+    }
+
+    function selectableRowsForMode(mode) {
+        var base = (mode === 'todos' || mode === 'ativos') ? rowsMatchingCurrentFilter() : visibleRows();
+        return base.filter(function (row) {
+            var checkbox = getCheckbox(row);
+            return checkbox && !checkbox.disabled;
+        });
+    }
+
+    function setExportUsers(mode) {
+        mode = mode || 'ativos';
+        if (mode === 'limpar') {
+            all('.export-pis').forEach(function (item) { item.checked = false; });
+            if (byId('employeeSelectionMode')) byId('employeeSelectionMode').value = 'manter';
+            updateSelectedUsersCount();
+            updateSemRegistroHint();
             return;
         }
 
-        if (mode === 'todos') {
-            item.checked = targetSet.has(row);
-            return;
+        // Regra automática: se o usuário pediu todos/ativos do filtro,
+        // funcionários sem registro podem entrar zerados com observação.
+        if (mode === 'todos' || mode === 'ativos') {
+            setSemRegistroMode('zero');
         }
 
-        if (mode === 'ativos') {
-            item.checked = targetSet.has(row) && row.dataset.active === '1';
-        }
-    });
+        updatePeriodStatus();
+        var targetRows = selectableRowsForMode(mode);
+        var targetSet = new Set(targetRows);
 
-    ensureSemRegistroModeForSelection();
-    updateSelectedUsersCount();
-    updateSemRegistroHint();
-}
+        getRows().forEach(function (row) {
+            var checkbox = getCheckbox(row);
+            if (!checkbox || checkbox.disabled) {
+                if (checkbox) checkbox.checked = false;
+                return;
+            }
+            var shouldCheck = targetSet.has(row);
+            if (mode === 'ativos') {
+                shouldCheck = shouldCheck && row.getAttribute('data-active') === '1';
+            }
+            checkbox.checked = shouldCheck;
+        });
 
-document.querySelectorAll('[data-export-users]').forEach((button) => {
-    button.addEventListener('click', () => setExportUsers(button.dataset.exportUsers || 'ativos'));
-});
-
-document.getElementById('employeeSelectionMode')?.addEventListener('change', (event) => {
-    const mode = event.target.value || 'manter';
-    if (mode !== 'manter') {
-        setExportUsers(mode);
-    }
-});
-
-function setExportColumns(checked) {
-    document.querySelectorAll('.export-column').forEach((item) => {
-        item.checked = checked;
-    });
-}
-
-document.querySelectorAll('.export-pis').forEach((item) => {
-    item.addEventListener('change', () => {
-        ensureSemRegistroModeForSelection();
         updateSelectedUsersCount();
         updateSemRegistroHint();
-    });
-});
+    }
 
-document.querySelectorAll('#exportMes, #exportAno, #exportDataInicio, #exportDataFim, input[name="sem_registro"]').forEach((item) => {
-    item.addEventListener('change', () => {
+    function toggleOptions() {
+        var panel = byId('advancedExportOptions');
+        var button = byId('toggleAdvancedExportOptions');
+        if (!panel) return;
+        var isOpen = panel.classList.contains('show');
+        panel.classList.toggle('show', !isOpen);
+        panel.style.display = isOpen ? 'none' : 'block';
+        if (button) button.setAttribute('aria-expanded', isOpen ? 'false' : 'true');
+    }
+
+    function setExportColumns(checked) {
+        all('.export-column').forEach(function (item) { item.checked = !!checked; });
+    }
+
+    function selectionChange(value) {
+        if (value && value !== 'manter') {
+            setExportUsers(value);
+        }
+    }
+
+    window.afdUsuariosApplyFilter = function () { applyEmployeeFilter(true); };
+    window.afdUsuariosClearFilter = clearEmployeeFilter;
+    window.afdUsuariosToggleOptions = toggleOptions;
+    window.afdUsuariosSetExportUsers = setExportUsers;
+    window.afdUsuariosSelectionChange = selectionChange;
+    window.setExportColumns = setExportColumns;
+
+    ready(function () {
+        var applyBtn = byId('applyEmployeeFilter');
+        var clearBtn = byId('clearEmployeeFilter');
+        var toggleBtn = byId('toggleAdvancedExportOptions');
+        var selection = byId('employeeSelectionMode');
+        var search = byId('employeeSearch');
+        var form = byId('exportForm');
+
+        if (applyBtn) applyBtn.addEventListener('click', function () { applyEmployeeFilter(true); });
+        if (clearBtn) clearBtn.addEventListener('click', clearEmployeeFilter);
+        if (toggleBtn) toggleBtn.addEventListener('click', toggleOptions);
+        if (selection) selection.addEventListener('change', function () { selectionChange(selection.value); });
+
+        all('[data-export-users]').forEach(function (button) {
+            button.addEventListener('click', function () {
+                setExportUsers(button.getAttribute('data-export-users') || 'ativos');
+            });
+        });
+
+        all('.export-pis').forEach(function (item) {
+            item.addEventListener('change', function () {
+                if (item.checked && item.getAttribute('data-status') === 'sem_registro' && semRegistroMode() === 'skip') {
+                    setSemRegistroMode('zero');
+                }
+                updateSelectedUsersCount();
+                updateSemRegistroHint();
+            });
+        });
+
+        all('#exportMes, #exportAno, #exportDataInicio, #exportDataFim, input[name="sem_registro"]').forEach(function (item) {
+            item.addEventListener('change', function () {
+                updatePeriodStatus();
+                applyEmployeeFilter(false);
+            });
+        });
+
+        if (search) {
+            search.addEventListener('keydown', function (event) {
+                if (event.key === 'Enter') {
+                    event.preventDefault();
+                    applyEmployeeFilter(true);
+                }
+            });
+        }
+
+        if (form) {
+            form.addEventListener('submit', function (event) {
+                updatePeriodStatus();
+                var mode = selection ? selection.value : 'manter';
+                if (mode === 'todos' || mode === 'ativos') {
+                    setExportUsers(mode);
+                }
+                var selected = all('.export-pis:checked:not(:disabled)');
+                if (selected.length === 0) {
+                    event.preventDefault();
+                    alert('Selecione pelo menos um colaborador exportável.');
+                }
+            });
+        }
+
+        var panel = byId('advancedExportOptions');
+        if (panel && !panel.classList.contains('show')) {
+            panel.style.display = 'none';
+        }
+
         updatePeriodStatus();
         applyEmployeeFilter(false);
     });
-});
-
-document.getElementById('applyEmployeeFilter')?.addEventListener('click', () => applyEmployeeFilter(true));
-document.getElementById('clearEmployeeFilter')?.addEventListener('click', clearEmployeeFilter);
-document.getElementById('employeeSearch')?.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter') {
-        event.preventDefault();
-        applyEmployeeFilter(true);
-    }
-});
-
-updatePeriodStatus();
-applyEmployeeFilter(false);
-
-document.getElementById('exportForm')?.addEventListener('submit', function (event) {
-    updatePeriodStatus();
-
-    const selectionMode = document.getElementById('employeeSelectionMode')?.value || 'manter';
-    if (selectionMode === 'todos' || selectionMode === 'ativos') {
-        setExportUsers(selectionMode);
-    }
-
-    ensureSemRegistroModeForSelection();
-
-    const selected = Array.from(document.querySelectorAll('.export-pis:checked:not(:disabled)'));
-
-    if (selected.length === 0) {
-        event.preventDefault();
-        alert('Selecione pelo menos um colaborador exportável.');
-    }
-});
+})();
 </script>
